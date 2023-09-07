@@ -1,0 +1,695 @@
+---
+title: "Create_Dataframe"
+format: html
+---
+
+
+This markdown loads the necessary raster datasets - transforms them to match the same spatial extent and coordinate system as the fractional cover data, and converts to data.table format and merges into a single dataframe representing all raster variables.
+
+This table is used for GAMs in section 1 and 2 of the paper.
+
+```{r}
+#| label: setup
+pacman::p_load(tidyverse, lubridate, terra, sf, fields, arrow, data.table)
+outputFolder <- "./outputs/tables"
+```
+
+
+# Create template raster for reprojection
+
+```{r}
+path_pv <- "./outputs/raster/guerschman_fc_monthly/fc_monthly_pv_20010101_20230101.nc"
+
+# Create blank raster - used to project all datasets to same coordinate system
+blankRast <- rast(path_pv)[[1]]
+blankRast[!is.na(blankRast)] <- NA
+names(blankRast) <- "blankRast"
+
+# Polygon extent of study area
+extent <- read_sf("./outputs/vector/study_area.gpkg") %>% 
+  st_geometry()
+
+# Get Dates from pv file names
+dates <- rast(path_pv) %>% 
+  time()
+```
+
+# Load FC variables
+
+```{r}
+path_npv <- "./outputs/raster/guerschman_fc_monthly/fc_monthly_npv_20010101_20230101.nc"
+path_bare <- "./outputs/raster/guerschman_fc_monthly/fc_monthly_bare_20010101_20230101.nc"
+
+##########
+### PV ###
+##########
+
+pv <- rast(path_pv)
+pv <- as.data.frame(pv, xy = T, cells = T, na.rm = F)
+names(pv)[4:ncol(pv)] <- as.character(dates)
+
+pv <- pv %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "pv")
+setDT(pv)
+
+###########
+### NPV ###
+###########
+
+npv <- rast(path_npv)
+npv <- as.data.frame(npv, xy = T, cells = T, na.rm = F)
+names(npv)[4:ncol(npv)] <- as.character(dates)
+
+npv <- npv %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "npv")
+setDT(npv)
+
+############
+### Bare ###
+############
+
+bare <- rast(path_bare)
+bare <- as.data.frame(bare, xy = T, cells = T, na.rm = F)
+names(bare)[4:ncol(bare)] <- as.character(dates)
+
+bare <- bare %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "bare")
+setDT(bare)
+
+#############################
+### Bind cover components ###
+#############################
+
+df <- cbind(pv, npv[,5]) %>% 
+  cbind(., bare[,5])
+
+rm(list = c("pv", "npv", "bare"))
+gc(full = T, reset = T)
+
+####################
+### 12 month min ###
+####################
+path_pv_12mo_min <- "./outputs/raster/guerschman_fc_monthly/rolling/fc_monthly_pv_20010101_20230101_12mo_min.nc"
+path_npv_12mo_min <- "./outputs/raster/guerschman_fc_monthly/rolling/fc_monthly_npv_20010101_20230101_12mo_min.nc"
+path_bare_12mo_min <- "./outputs/raster/guerschman_fc_monthly/rolling/fc_monthly_bare_20010101_20230101_12mo_min.nc"
+
+### PV ###
+
+pv_12mo_min <- rast(path_pv_12mo_min)
+pv_12mo_min <- as.data.frame(pv_12mo_min, xy = T, cells = T, na.rm = F)
+names(pv_12mo_min)[4:ncol(pv_12mo_min)] <- as.character(dates)
+
+pv_12mo_min <- pv_12mo_min %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "pv_12mo_min")
+setDT(pv_12mo_min)
+
+### NPV ###
+
+npv_12mo_min <- rast(path_npv_12mo_min)
+npv_12mo_min <- as.data.frame(npv_12mo_min, xy = T, cells = T, na.rm = F)
+names(npv_12mo_min)[4:ncol(npv_12mo_min)] <- as.character(dates)
+
+npv_12mo_min <- npv_12mo_min %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "npv_12mo_min")
+setDT(npv_12mo_min)
+
+### Bare ###
+
+bare_12mo_min <- rast(path_bare_12mo_min)
+bare_12mo_min <- as.data.frame(bare_12mo_min, xy = T, cells = T, na.rm = F)
+names(bare_12mo_min)[4:ncol(bare_12mo_min)] <- as.character(dates)
+
+bare_12mo_min <- bare_12mo_min %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "bare_12mo_min")
+setDT(bare_12mo_min)
+
+####################
+### 12 month max ###
+####################
+path_pv_12mo_max <- "./outputs/raster/guerschman_fc_monthly/rolling/fc_monthly_pv_20010101_20230101_12mo_max.nc"
+path_npv_12mo_max <- "./outputs/raster/guerschman_fc_monthly/rolling/fc_monthly_npv_20010101_20230101_12mo_max.nc"
+path_bare_12mo_max <- "./outputs/raster/guerschman_fc_monthly/rolling/fc_monthly_bare_20010101_20230101_12mo_max.nc"
+
+
+### PV ###
+
+pv_12mo_max <- rast(path_pv_12mo_max)
+pv_12mo_max <- as.data.frame(pv_12mo_max, xy = T, cells = T, na.rm = F)
+names(pv_12mo_max)[4:ncol(pv_12mo_max)] <- as.character(dates)
+
+pv_12mo_max <- pv_12mo_max %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "pv_12mo_max")
+setDT(pv_12mo_max)
+
+### NPV ###
+
+npv_12mo_max <- rast(path_npv_12mo_max)
+npv_12mo_max <- as.data.frame(npv_12mo_max, xy = T, cells = T, na.rm = F)
+names(npv_12mo_max)[4:ncol(npv_12mo_max)] <- as.character(dates)
+
+npv_12mo_max <- npv_12mo_max %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "npv_12mo_max")
+setDT(npv_12mo_max)
+
+### Bare ###
+
+bare_12mo_max <- rast(path_bare_12mo_max)
+bare_12mo_max <- as.data.frame(bare_12mo_max, xy = T, cells = T, na.rm = F)
+names(bare_12mo_max)[4:ncol(bare_12mo_max)] <- as.character(dates)
+
+bare_12mo_max <- bare_12mo_max %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "bare_12mo_max")
+setDT(bare_12mo_max)
+
+
+####################################### 
+### Bind cover components min / max ###
+#######################################
+
+df <- cbind(df, pv_12mo_min[,5]) %>% 
+  cbind(., npv_12mo_min[,5]) %>% 
+  cbind(., bare_12mo_min[,5]) %>% 
+  cbind(., pv_12mo_max[,5]) %>% 
+  cbind(., npv_12mo_max[,5]) %>% 
+  cbind(., bare_12mo_max[,5])
+
+rm(list = c("pv_12mo_min", "npv_12mo_min", "bare_12mo_min", "pv_12mo_max", "npv_12mo_max", "bare_12mo_max"))
+gc(full = T, reset = T)
+```
+
+# Rainfall
+## IMERG
+
+```{r}
+# Function to process rainfall datasets. Pivot longer to have date column.
+processRainfall <- function(path, dataset_name) {
+  precip <- rast(path)
+  dates <- time(precip)
+  precip <- precip %>% 
+    project(blankRast) %>%
+    as.data.frame(xy = T, cells = T, na.rm = F)
+
+  names(precip)[4:ncol(precip)] <- as.character(dates)
+
+  precip <- precip %>%  
+    pivot_longer(., cols = 4:ncol(.), names_to = "date", values_to = dataset_name)
+  setDT(precip)
+
+  return(precip)
+}
+
+p_img <- processRainfall("./outputs/raster/imerg_precipitation/3B-MO.MS.MRG.3IMERG_20000601_20210901.nc", "p_imerg")
+setkeyv(p_img, c("date", "x","y"))
+df <- merge(df, p_img %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_img)
+gc(full = T, reset = T)
+
+p_img_3 <- processRainfall("./outputs/raster/imerg_precipitation/rolling/3B-MO.MS.MRG.3IMERG_20000601_20210901_3mo_sum.nc", "p_img_3")
+
+setkeyv(p_img_3, c("date", "x","y"))
+df <- merge(df, 
+            p_img_3 %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_img_3)
+gc(full = T, reset = T)
+
+p_img_12 <- processRainfall("./outputs/raster/imerg_precipitation/rolling/3B-MO.MS.MRG.3IMERG_20000601_20210901_12mo_sum.nc", "p_img_12")
+
+setkeyv(p_img_12, c("date", "x","y"))
+df <- merge(df, 
+            p_img_12 %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_img_12)
+gc(full = T, reset = T)
+
+# p_img_24 <- processRainfall("./soutputs/raster/imerg_precipitation/rolling/3B-MO.MS.MRG.3IMERG_20000601_20210901_24mo_sum.nc", "p_img_24")
+# 
+# setkeyv(p_img_24, c("date", "x","y"))
+# df <- merge(df, 
+#             p_img_24 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_img_24)
+# gc(full = T, reset = T)
+# 
+# p_img_36 <- processRainfall("./outputs/raster/imerg_precipitation/rolling/3B-MO.MS.MRG.3IMERG_20000601_20210901_36mo_sum.nc", "p_img_36")
+# 
+# setkeyv(p_img_36, c("date", "x","y"))
+# df <- merge(df, 
+#             p_img_36 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_img_36)
+# gc(full = T, reset = T)
+
+```
+
+## AGCD Precipitation
+
+```{r}
+p_agcd <- processRainfall("./outputs/raster/agcd_precipitation/agcd_v2_preicp_monthly_20010101_20200501.nc", "p_agcd")
+
+setkeyv(p_agcd, c("date", "x","y"))
+df <- merge(df, 
+            p_agcd %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_agcd)
+gc(full = T, reset = T)
+
+p_agcd_3 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2_preicp_monthly_20010101_20200501_3mo_sum.nc", "p_agcd_3")
+
+setkeyv(p_agcd_3, c("date", "x","y"))
+df <- merge(df, 
+            p_agcd_3 %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_agcd_3)
+gc(full = T, reset = T)
+
+p_agcd_12 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2_preicp_monthly_20010101_20200501_12mo_sum.nc", "p_agcd_12")
+
+setkeyv(p_agcd_12, c("date", "x","y"))
+df <- merge(df, 
+            p_agcd_12 %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_agcd_12)
+gc(full = T, reset = T)
+
+# p_agcd_24 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2_preicp_monthly_20010101_20200501_24mo_sum.nc", "p_agcd_24")
+# 
+# setkeyv(p_agcd_24, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd_24 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd_24)
+# gc(full = T, reset = T)
+# 
+# p_agcd_36 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2_preicp_monthly_20010101_20200501_36mo_sum.nc", "p_agcd_36")
+# 
+# setkeyv(p_agcd_36, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd_36 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd_36)
+# gc(full = T, reset = T)
+
+```
+
+## CHIRPS
+
+```{r}
+p_chirps <- processRainfall("./outputs/raster/chirps_precipitation/CHIRPS2.0_global_monthly_EW_data_20000101_20230301.nc", "p_chirps")
+
+setkeyv(p_chirps, c("date", "x","y"))
+df <- merge(df, 
+            p_chirps %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_chirps)
+gc(full = T, reset = T)
+
+p_chirps_3 <- processRainfall("./outputs/raster/chirps_precipitation/rolling/CHIRPS2.0_global_monthly_EW_data_20000101_20230301_3mo_sum.nc", "p_chirps_3")
+
+setkeyv(p_chirps_3, c("date", "x","y"))
+df <- merge(df, 
+            p_chirps_3 %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+gc(full = T, reset = T)
+
+p_chirps_12 <- processRainfall("./outputs/raster/chirps_precipitation/rolling/CHIRPS2.0_global_monthly_EW_data_20000101_20230301_12mo_sum.nc", "p_chirps_12")
+
+setkeyv(p_chirps_12, c("date", "x","y"))
+df <- merge(df, 
+            p_chirps_12 %>% select(-cell), 
+            by = c("date", "x", "y"),
+            all.x = T)
+
+rm(p_chirps_12)
+gc(full = T, reset = T)
+
+# p_chirps_24 <- processRainfall("./outputs/raster/chirps_precipitation/rolling/CHIRPS2.0_global_monthly_EW_data_20000101_20230301_24mo_sum.nc", "p_chirps_24")
+# 
+# setkeyv(p_chirps_24, c("date", "x","y"))
+# df <- merge(df, 
+#             p_chirps_24 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_chirps_24)
+# gc(full = T, reset = T)
+# 
+# p_chirps_36 <- processRainfall("./outputs/raster/chirps_precipitation/rolling/CHIRPS2.0_global_monthly_EW_data_20000101_20230301_36mo_sum.nc", "p_chirps_36")
+# 
+# setkeyv(p_chirps_36, c("date", "x","y"))
+# df <- merge(df, 
+#             p_chirps_36 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_chirps_36)
+# gc(full = T, reset = T)
+
+```
+
+# Statistical zones
+
+Vector datasets including station boundaries, etc. used for grouping in modelling Converted to raster data
+
+```{r}
+################
+### Stations ###
+################
+
+stations <- read_sf("./outputs/vector/pastoral_stations.gpkg") %>%
+  vect() %>% 
+  rasterize(blankRast, field = "NAME") %>% 
+  as.data.frame(xy = T, cells = T, na.rm = F)
+names(stations)[4] <- "station"
+setDT(stations)
+
+setkeyv(stations, c("x","y"))
+
+df <- merge(df, 
+            stations %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(stations)
+gc(full = T, reset = T)
+
+################
+### Paddocks ###
+################
+
+paddocks <- read_sf("./outputs/vector/pastoral_paddocks.gpkg") %>%
+  st_transform(crs = "EPSG:28353") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "NAME") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(paddocks)
+
+setkeyv(paddocks, c("x","y"))
+df <- merge(df, 
+            paddocks %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(paddocks)
+gc(full = T, reset = T)
+
+####################
+### IBRA Regions ###
+####################
+
+ibra_r <- read_sf("./outputs/vector/ibra_subregions.gpkg") %>% 
+  st_transform("EPSG:28353") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "REG_NAME_7") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(ibra_r)
+
+setkeyv(ibra_r, c("x","y"))
+
+df <- merge(df, 
+            ibra_r %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(ibra_r)
+gc(full = T, reset = T)
+
+#######################
+### IBRA SubRegions ###
+#######################
+
+ibra_sr <- read_sf("./outputs/vector/ibra_subregions.gpkg") %>% 
+  st_transform("EPSG:28353") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "SUB_NAME_7") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(ibra_sr)
+
+setkeyv(ibra_sr, c("x","y"))
+
+df <- merge(df, 
+            ibra_sr %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(ibra_sr)
+gc(full = T, reset = T)
+
+###################
+### Landsystems ###
+###################
+
+l_sys <- read_sf("./outputs/vector/pastoral_landsystems.gpkg") %>% 
+  st_transform("EPSG:28353") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "LANDSYSTEM") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(l_sys)
+
+setkeyv(l_sys, c("x","y"))
+
+df <- merge(df, 
+            l_sys %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(l_sys)
+gc(full = T, reset = T)
+
+######################
+### NVIS SubGroups ###
+######################
+
+nvis_s <- rast("./data/raster/NVIS6_0_AUST_EXT_MVS_ALB.tif") %>% 
+  project(blankRast)
+nvis_s[nvis_s == "Unknown/No data"] <- NA
+nvis_s <- nvis_s %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(nvis_s)
+
+setkeyv(nvis_s, c("x","y"))
+
+df <- merge(df, 
+            nvis_s %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(nvis_s)
+gc(full = T, reset = T)
+
+###################
+### NVIS Groups ###
+###################
+
+nvis <- rast("./data/raster/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>% 
+  project(blankRast)
+nvis[nvis == "Unknown/no data"] <- NA
+nvis <- nvis %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(nvis)
+
+setkeyv(nvis, c("x","y"))
+
+df <- merge(df, 
+            nvis %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(nvis)
+gc(full = T, reset = T)
+
+######################
+### Nearby Bon Bon ###
+######################
+
+zone <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "zone")
+zone[is.na(zone)] <- 3
+zone <- zone %>% 
+  as.data.frame(xy = T, cells = T)
+
+setDT(zone)
+setkeyv(zone, c("x","y"))
+df <- merge(df, 
+            zone %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(zone)
+gc(full = T, reset = T)
+
+############################
+### Station Fence Buffer ###
+############################
+
+fences <- read_sf("./outputs/vector/fences.gpkg") %>%
+  vect() %>%
+  rasterize(blankRast, field = "fence") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(fences)
+
+setkeyv(fences, c("x","y"))
+
+df <- merge(df, 
+            fences %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(fences)
+gc(full = T, reset = T)
+
+#################
+### Dog Fence ###
+#################
+
+dog_fence <- read_sf("./outputs/vector/dog_fence.gpkg") %>% 
+  rasterize(blankRast, field = "inside") %>% 
+  as.data.frame(xy = T, cells = T, na.rm = F)
+setDT(dog_fence)
+
+setkeyv(dog_fence, c("x","y"))
+
+df <- merge(df, 
+            dog_fence %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(dog_fence)
+gc(full = T, reset = T)
+```
+
+# Time since destock
+
+```{r}
+destockYear <- list(as_date("2009/01/01"))
+names(destockYear) <-  c("Bon Bon")
+
+tsd <- tibble(station = rep(names(destockYear), each = length(dates)),
+              date = as_date(rep(dates, length(names(destockYear))))) %>%
+  mutate(year = year(date),
+         month = month(date)) %>% 
+  add_column(tsd = as.numeric(NA))
+
+
+for (s in 1:length(destockYear)) {
+  # Dates before destock year
+  index <- which(tsd$station == names(destockYear)[s] & tsd$year < year(destockYear[[s]]))
+  # Assign zero to these dates
+  tsd$tsd[index] <- 0
+  
+  # Dates after destock year
+  afterIndex <- which(tsd$station == names(destockYear)[s] & tsd$year >= year((destockYear[[s]])))
+  
+  if (length(afterIndex) > 0) {
+    date_diff <- unlist(lapply(tsd$date[afterIndex], function(x) {x - destockYear[[s]]}))
+    tsd$tsd[afterIndex] <- date_diff/365
+  }
+}
+
+tsd$date <- as.character(tsd$date)
+
+setDT(tsd)
+
+setkeyv(tsd, c("station","date"))
+
+df <- merge(df, 
+            tsd %>% select(-c("year", "month")), 
+            by = c("station", "date"),
+            all.x = T)
+
+df[which(!df$station %in% names(destockYear)), "tsd"] <- 0
+
+rm(tsd)
+gc(full = T, reset = T)
+```
+
+# BHP stocking data
+
+```{r eval = FALSE}
+stocking <- read_csv("./data/tables/returns_processed.csv")
+setDT(stocking)
+setkeyv(stocking, c("station", "year"))
+
+# Make year column in df for merging stocking data
+years <- df$date %>% 
+  str_split(., "-", simplify = T) %>% 
+  .[,1] %>%
+  as.numeric()
+
+df <- df %>% 
+  add_column(year = years, .after = 2)
+
+rm(years)
+
+df <- merge(df, 
+            stocking %>% select(-c("opening_sheep", "opening_cattle", "opening_total", "geometry")), 
+            by = c("station", "year"),
+            all.x = T)
+
+rm(stocking)
+gc(full = T, reset = T)
+```
+
+# Water areas
+
+```{r}
+water <- read_sf("./outputs/vector/water_courses.gpkg") %>% 
+  add_column(water = 1) %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "water")
+
+water[water != 1] <- NA
+
+water <- water %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(water)
+
+setkeyv(water, c("x","y"))
+
+df <- merge(df, S
+            water %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(water)
+gc(full = T, reset = T)
+```
+
+```{r eval = FALSE}
+names(df) <- c("x", "y", "station", "year", "date", "cell", "pv", "npv", "bare", "pv_12mo_min", "npv_12mo_min", "bare_12mo_min", "pv_12mo_max", "npv_12mo_max", "bare_12mo_max", "p_imerg", "p_img_3", "p_img_12", "p_agcd", "p_agcd_3", "p_agcd_12", "p_chirps", "p_chirps_3", "p_chirps_12", "paddock", "ibra_region", "ibra_subregion", "land_system", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "tsd", "area", "cattle_area", "sheep_area", "stock_area", "cattle_area_2", "cattle_area_3", "sheep_area_2", "sheep_area_3", "stock_area_2", "stock_area_3", "water")
+```
+
+# Save df
+
+```{r, eval = FALSE}
+# test <- df[sample(1:nrow(df), 10000), ]
+# test2 <- st_as_sf(test, coords = c("x", "y"))
+
+arrow::write_parquet(df, file.path(outputFolder, "full_dataframe.parquet"))
+```

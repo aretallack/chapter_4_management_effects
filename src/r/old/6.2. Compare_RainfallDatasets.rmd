@@ -1,0 +1,183 @@
+---
+title: "Compare rainfall datasets"
+author: "Angus Retallack"
+date: "2022-12-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(terra, tidyverse, lubridate, SpatialPack)
+```
+
+Load TVC to serve as template for cropping
+```{r}
+baseTVC <- "E:/Data/MODIS/GuerschmanFC/Monthly/Processed/"
+
+pathTVC <- file.path(baseTVC, "TVC")
+
+filesTVC <- list.files(pathTVC, "*.tif$", full.names = TRUE)
+TVC <- rast(filesTVC)
+
+# add dates
+dates <- names(TVC) %>%
+  substr(., 18, 24) %>% 
+  str_replace("\\.", "-") %>% 
+  paste0(., "-01") %>% 
+  as_date()
+
+# Add times (dates) to TVC stack
+time(TVC) <- dates
+
+firstDate <- time(TVC)[1]
+lastDate <- time(TVC)[length(time(TVC))]
+
+
+#### Template Raster
+
+# Blank raster generated from TVC, used as a template for creating additional
+# rasters for modelling
+
+blankRast <- TVC[[1]]
+blankRast[!is.na(blankRast)] <- NA
+names(blankRast) <- "blankRast"
+```
+
+# Load GPM rainfall
+
+```{r}
+rainfallGPM <- rast(list.files("E:/Data/Rainfall/GPM IMERG/Processed", "*.tif$", full.names = TRUE)) %>% 
+  project(blankRast) %>% 
+  crop(blankRast)
+
+datesGPM <- names(rainfallGPM) %>% 
+  str_split(., "\\.", simplify = TRUE) %>% 
+  .[, 5] %>% 
+  str_split(., "-", simplify = TRUE) %>% 
+  .[, 1] %>% 
+  {paste(str_sub(., 1, 4), str_sub(., 5, 6), str_sub(., 7, 8), sep = "/")} %>% 
+  as_date()
+
+time(rainfallGPM) <- datesGPM
+
+rainfallGPM <- rainfallGPM[[-c(1:which(time(rainfallGPM) == firstDate) - 1)]] 
+
+# Add blank rasters to dates missing after
+missingAfter <- length(seq(from = time(rainfallGPM)[length(time(rainfallGPM))], to = lastDate, by = 'month')) - 1
+rainfallGPM <- c(rainfallGPM, rep(blankRast, missingAfter))
+time(rainfallGPM)[(length(names(rainfallGPM)) - (missingAfter - 1)):length(names(rainfallGPM))] <- seq(time(rainfallGPM)[length(names(rainfallGPM)) - (missingAfter)] + 30, lastDate, by = "month")
+```
+
+# Load CHIRPS rainfall
+
+```{r}
+rainfallCHIRPS <- rast(list.files("E:/Data/Rainfall/CHIRPS/Processed", "*.tif$", full.names = TRUE)) %>% 
+  project(blankRast) %>% 
+  crop(blankRast)
+
+datesCHIRPS <- names(rainfallCHIRPS) %>% 
+  str_split(., "\\.", simplify = TRUE) %>% 
+  .[, 3:4] %>% 
+  apply(., 1, function(x) str_flatten(x, collapse = "/")) %>% 
+  paste0(., "/01") %>% 
+  as_date()
+
+time(rainfallCHIRPS) <- datesCHIRPS
+# Remove dates before first TVC date
+rainfallCHIRPS <- rainfallCHIRPS[[-c(1:which(time(rainfallCHIRPS) == firstDate) - 1)]] 
+# Add blank rasters to dates missing after
+missingAfter <- length(seq(from = time(rainfallCHIRPS)[length(time(rainfallCHIRPS))], to = lastDate, by = 'month')) - 1
+rainfallCHIRPS <- c(rainfallCHIRPS, rep(blankRast, missingAfter))
+time(rainfallCHIRPS)[(length(names(rainfallCHIRPS)) - (missingAfter - 1)):length(names(rainfallCHIRPS))] <- seq(time(rainfallCHIRPS)[length(names(rainfallCHIRPS)) - (missingAfter)] + 30, lastDate, by = "month")
+```
+
+# Load AGCD rainfall
+
+```{r}
+rainfallAGCD <- rast(list.files("E:/Data/Rainfall/AGCD/Processed", "*.tif$", full.names = TRUE)) %>% 
+  project(blankRast) %>% 
+  crop(blankRast)
+
+datesAGCD <- names(rainfallAGCD) %>% 
+  str_split(., "_", simplify = TRUE) %>% 
+  .[, 7] %>%
+  str_remove(., ".tif") %>% 
+  str_replace(., "-", "/") %>% 
+  paste0(., "/01") %>% 
+  as_date()
+
+time(rainfallAGCD) <- datesAGCD
+
+# Remove dates before first TVC date
+rainfallAGCD <- rainfallAGCD[[-c(1:which(time(rainfallAGCD) == firstDate) - 1)]] 
+
+# Add blank rasters to dates missing after
+missingAfter <- length(seq(from = time(rainfallAGCD)[length(time(rainfallAGCD))], to = lastDate, by = 'month')) - 1
+rainfallAGCD <- c(rainfallAGCD, rep(blankRast, missingAfter))
+time(rainfallAGCD)[(length(names(rainfallAGCD)) - (missingAfter - 1)):length(names(rainfallAGCD))] <- seq(time(rainfallAGCD)[length(names(rainfallAGCD)) - (missingAfter)] + 30, lastDate, by = "month")
+```
+
+
+# Remove blanks from ends of raster timeseries
+
+```{r}
+# AGCD dataset finishes first
+# AGCD dataset becomes blank at index 234
+which(names(rainfallAGCD) == "blankRast")[1]
+
+# So keep 1-233
+
+rainfallAGCD <- rainfallAGCD[[1:233]]
+rainfallGPM <- rainfallGPM[[1:233]]
+rainfallCHIRPS <- rainfallCHIRPS[[1:233]]
+```
+
+
+# Structural Similarity Index
+Shows most similarity between GPM and AGCD. Some dips where similarity is low, but quite rare, and possible that GPM dataset more accurate in these cases.
+
+```{r}
+AGCD_Matrix <- lapply(rainfallAGCD, \(x) as.matrix(x, wide = T))
+CHIRPS_Matrix <- lapply(rainfallCHIRPS, \(x) as.matrix(x, wide = T))
+GPM_Matrix <- lapply(rainfallGPM, \(x) as.matrix(x, wide = T))
+
+# Compare AGCD and CHIRPS
+SSIM_AGCD_CHIRPS <- mapply(SSIM, x = AGCD_Matrix, y = CHIRPS_Matrix)
+SSIM_AGCD_GPM <- mapply(SSIM, x = AGCD_Matrix, y = GPM_Matrix)
+SSIM_GPM_CHIRPS <- mapply(SSIM, x = GPM_Matrix, y = CHIRPS_Matrix)
+
+SSIM_DF <- rbind(tibble(month = seq(1, length(names(rainfallAGCD)), 1),
+             datasets = "AGCD, CHIRPS",
+             SSIM = unlist(lapply(1:ncol(SSIM_AGCD_CHIRPS), \(x) SSIM_AGCD_CHIRPS[, x]$SSIM))),
+      tibble(month = seq(1, length(names(rainfallAGCD)), 1),
+             datasets = "AGCD, GPM",
+             SSIM = unlist(lapply(1:ncol(SSIM_AGCD_GPM), \(x) SSIM_AGCD_GPM[, x]$SSIM))),
+      tibble(month = seq(1, length(names(rainfallAGCD)), 1),
+             datasets = "GPM, CHIRPS",
+             SSIM = unlist(lapply(1:ncol(SSIM_GPM_CHIRPS), \(x) SSIM_GPM_CHIRPS[, x]$SSIM)))
+       ) 
+
+
+# Plot SSI
+
+ggplot(SSIM_DF, aes(x = month, y = SSIM, colour = datasets)) +
+  geom_smooth(stat = "identity") +
+  ylim(0, 1)
+
+ggplot(filter(SSIM_DF, datasets == "AGCD, CHIRPS"), aes(x = month, y = SSIM, colour = datasets)) +
+  geom_line(stat = "identity") +
+  geom_abline(intercept = mean(filter(SSIM_DF, datasets == "AGCD, CHIRPS")$SSIM), slope = 0) +
+  ylim(0, 1)
+
+ggplot(filter(SSIM_DF, datasets == "AGCD, GPM"), aes(x = month, y = SSIM, colour = datasets)) +
+  geom_line(stat = "identity") +
+  geom_abline(intercept = mean(filter(SSIM_DF, datasets == "AGCD, GPM")$SSIM), slope = 0) +
+  ylim(0, 1)
+
+ggplot(filter(SSIM_DF, datasets == "GPM, CHIRPS"), aes(x = month, y = SSIM, colour = datasets)) +
+  geom_line(stat = "identity") +
+  geom_abline(intercept = mean(filter(SSIM_DF, datasets == "GPM, CHIRPS")$SSIM), slope = 0) +
+  ylim(0, 1)
+
+```
+

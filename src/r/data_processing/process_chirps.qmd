@@ -1,0 +1,53 @@
+---
+title: "Process_CHIRPS"
+format: html
+---
+
+```{r}
+#| label: setup
+pacman::p_load(terra, tidyverse, stringr, sf)
+
+studyExtent <- read_sf("./outputs/vector/study_area.gpkg") %>% st_geometry()
+```
+
+```{r}
+basePath <- "../../data/Climate_Data/Precip_CHIRPS"
+filePaths <- list.files(basePath, "*.tif$", full.names = TRUE)
+outputPath <- "./outputs/raster/chirps_precipitation"
+
+rasters <- rast(filePaths) %>%
+  # Crop to sutdy extent
+  crop(studyExtent %>% st_transform("EPSG:4326") %>% st_buffer(10000) %>% vect()) %>% 
+  # Project to GDA94 MGA zone 53
+  project("EPSG:28353") %>% 
+  # Crop again to study extent
+  crop(studyExtent %>% st_buffer(5000))
+
+# Set less than zero to NA
+rasters[rasters < 0] <- NA
+
+# Set times
+get_dates <- function(x) {
+  date <- basename(x) %>% 
+    str_sub(-11, -5) %>% 
+    str_replace("\\.", "")
+  date <- paste0(date, "01")
+  date <- lubridate::ymd(date)
+  return(date)
+}
+
+time(rasters) <- lapply(filePaths, get_dates) %>% 
+  unlist() %>% 
+  as_date()
+```
+
+# Save as ncdf
+
+```{r}
+start_date <- time(rasters)[1] %>% 
+  str_remove_all("-")
+end_date <- time(rasters)[length(time(rasters))] %>% 
+  str_remove_all("-")
+
+writeCDF(rasters, file.path(outputPath, paste0("CHIRPS2.0_global_monthly_EW_data_", start_date, "_", end_date, ".nc")), varname = "chirps_precipitation_monthly", compression = 6, overwrite = T)
+```

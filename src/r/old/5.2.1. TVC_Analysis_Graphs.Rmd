@@ -1,0 +1,172 @@
+---
+title: "Visualise Summaries"
+author: "Angus Retallack"
+date: "2022-08-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, terra, sf, gganimate)
+dataset <- "TVCa" # Raster product of interest (TVC8day, TVCm, TVCa or EVI)
+```
+
+## Raster paths
+
+```{r}
+if (dataset == "EVI") {
+  dataPath <- "E:/Data/MODIS/VI_16Days_500m_v6/EVI/Processed"
+  filePaths <- list.files(dataPath, "*.rds$", full.names = TRUE)
+}
+
+if (dataset == "TVC8day") {
+  dataPath <- "E:/Data/MODIS/GuerschmanFC/8day/Processed/TVC"
+  filePaths <- list.files(dataPath, "*.rds$", full.names = TRUE) ## ORDER BY DATE ###
+}
+
+if (dataset == "TVCm") {
+  dataPath <- "E:/Data/MODIS/GuerschmanFC/Monthly/Processed/TVC"
+  filePaths <- list.files(dataPath, "*.rds$", full.names = TRUE) ## ORDER BY DATE ###
+}
+
+if (dataset == "TVCa") {
+  dataPath <- "E:/Data/MODIS/GuerschmanFC/Monthly/Processed/TVC/TVCa"
+  filePaths <- list.files(dataPath, "*.rds$", full.names = TRUE) ## ORDER BY DATE ###
+}
+```
+
+# Load RDS
+```{r}
+meanDifference <- readRDS(filePaths)
+```
+
+# Monthly Graphs
+
+```{r}
+if (dataset == "TVCm") {
+  sites <- unique(meanDifference$site_name)
+  dates <- unique(meanDifference$Date)
+  
+  # Time series bar charts of mean difference from subregion mean for each site
+  meanDifference_TS <- vector("list", length(sites))
+  
+  for (i in 1:length(sites)) {
+    meanDifference_TS[[i]] <- ggplot(meanDifference[which(meanDifference$site_name == sites[i]), ], aes(x = Date, y = Mean_Difference)) +
+      geom_bar(stat = "identity") +
+      labs(
+        title = sites[i] 
+      )
+    names(meanDifference_TS)[[i]] <- sites[i]
+    }
+  
+  
+  # All-time mean difference
+  
+  meanDifference_mean <- tibble(site_name = sites,
+                         mean = as.numeric(NA),
+                         positive = as.numeric(NA))
+  
+  for (i in 1:length(sites)) {
+    meanDifference_mean[i, 2] <- mean(as.numeric(meanDifference$Mean_Difference[which(meanDifference$site_name == sites[i])]), na.rm = TRUE)
+    
+    if (meanDifference_mean$mean[i] > 0) {
+      meanDifference_mean$positive[i] <- paste(1)
+    } else {meanDifference_mean$positive[i] <- paste(0)
+        }
+  }
+  
+  # Plot all time mean differences for each site
+  ggplot(meanDifference_mean, aes(x = reorder(site_name, desc(mean)), y = mean, fill = positive)) +
+    geom_bar(stat = "identity", show.legend = FALSE) +
+    scale_fill_manual(values = c("#D95F02", "#66A61E")) +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.25)
+    )
+  
+  
+  # Monthly mean differences
+  
+  meanDifference_graphs_monthly <- vector("list", length(dates))
+  
+  for (i in 1:length(dates)) {
+    meanDifference_graphs_monthly[[i]] <- ggplot(meanDifference[which(meanDifference$Date %in% dates[i]), ], aes(x = reorder(site_name, desc(Mean_Difference)), y = Mean_Difference, fill = positive)) +
+      geom_bar(stat = "identity", show.legend = FALSE) +
+      scale_fill_manual(values = c("#D95F02", "#66A61E")) +
+      labs(
+        title = dates[i]
+      ) +
+      theme(
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.25)
+      )
+  }
+  
+  
+  # plots <- ggplot(meanDifference, aes(x = reorder(site_name, desc(Mean_Difference)), y = Mean_Difference, fill = positive)) +
+  #     geom_bar(stat = "identity", show.legend = FALSE) +
+  #     scale_fill_manual(values = c("#D95F02", "#66A61E")) +
+  #     theme(
+  #       axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.25)
+  #     ) +
+  #   labs(title = "Date: {frame_time}", x = "Site", y = "Mean Difference") +
+  #   transition_time(Date) +
+  #   ease_aes("linear")
+  # 
+  # animate(plots)
+}
+```
+
+# Annual Graphs
+
+```{r}
+if (dataset == "TVCa") {
+
+sites <- unique(meanDifference$site_name)
+dates <- unique(meanDifference$date)
+
+# Time series bar charts of mean difference from subregion mean for each site
+meanDifference_TS <- vector("list", length(sites))
+
+for (i in 1:length(sites)) {
+  meanDifference_TS[[i]] <- ggplot(meanDifference[which(meanDifference$site_name == sites[i]), ], aes(x = date, y = Mean_Difference)) +
+    geom_bar(stat = "identity") +
+    labs(
+      title = sites[i] 
+    )
+  names(meanDifference_TS)[[i]] <- sites[i]
+  }
+
+
+ggplot(meanDifference[which(meanDifference$date == "2020-01-01"), ], aes(x = reorder(site_name, desc(Mean_Difference)), y = Mean_Difference)) +
+  geom_bar(stat = "identity") +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.25)
+    )
+
+# All-time mean difference
+
+meanDifference_mean <- tibble(site_name = sites,
+                       mean = as.numeric(NA),
+                       positive = as.numeric(NA))
+
+for (i in 1:length(sites)) {
+meanDifference_mean[i, 2] <- mean(as.numeric(meanDifference$Mean_Difference[which(meanDifference$site_name == sites[i])]), na.rm = TRUE)
+
+  if (meanDifference_mean$mean[i] > 0) {
+    meanDifference_mean$positive[i] <- paste(1)
+  } else {meanDifference_mean$positive[i] <- paste(0)
+    }
+  }
+
+
+# Plot all time mean differences for each site
+ggplot(meanDifference_mean, aes(x = reorder(site_name, desc(mean)), y = mean, fill = positive)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_fill_manual(values = c("#D95F02", "#66A61E")) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.25)
+  )
+
+}
+```
+
+

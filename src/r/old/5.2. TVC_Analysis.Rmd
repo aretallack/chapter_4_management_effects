@@ -1,0 +1,242 @@
+---
+title: "Analyse MODIS EVI"
+author: "Angus Retallack"
+date: "2022-07-29"
+output: html_document
+---
+
+Analyse rasters. Calculates pixel deciles for product of choice.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, terra, sf)
+
+dataset <- "TVCa" # Raster product of interest (TVC8day, TVCm, TVCa or EVI)
+
+# EVI dataset comes from PreProcess.rmd
+# TVC datasets came from Create_TVC.rmd
+```
+
+# Import Data
+
+## Vector data
+
+```{r}
+summaryUnits <- read_sf("./Vector/summaryUnits.shp")
+names(summaryUnits)[1:4] <- c("stationName", "subregionName", "statisticalUnit", "shape_area")
+```
+
+## Raster paths
+
+```{r}
+if (dataset == "EVI") {
+  dataPath <- "E:/Data/MODIS/VI_16Days_500m_v6/EVI/Processed"
+  filePaths <- list.files(dataPath, "*.tif$", full.names = TRUE)
+}
+
+if (dataset == "TVC8day") {
+  dataPath <- "E:/Data/MODIS/GuerschmanFC/8day/Processed/TVC"
+  filePaths <- list.files(dataPath, "*.tif$", full.names = TRUE) ## ORDER BY DATE ###
+}
+
+if (dataset == "TVCm") {
+  dataPath <- "E:/Data/MODIS/GuerschmanFC/Monthly/Processed/TVC"
+  filePaths <- list.files(dataPath, "*.tif$", full.names = TRUE) ## ORDER BY DATE ###
+}
+
+if (dataset == "TVCa") {
+  dataPath <- "E:/Data/MODIS/GuerschmanFC/Monthly/Processed/TVC/TVCa"
+  filePaths <- list.files(dataPath, "*.tif$", full.names = TRUE) ## ORDER BY DATE ###
+}
+```
+
+## Load rasters
+
+```{r}
+rasters <- rast(filePaths)
+
+# terra::plot(project(rasters[[1]], "EPSG:28353")) +
+#   terra::plot(vect(summaryUnits$geometry), add = TRUE)
+```
+
+# Create masks
+
+Create raster masks of three IBRA subregions covering Bon Bon, as well as mask for pastoral stations intersected with IBRA subregions.
+
+```{r}
+# Raster mask of different IBRA sub regions for zonal statistics
+summaryRaster <- rast(ext = ext(summaryUnits), ncols = ncol(rasters[[1]]), nrows = nrow(rasters[[1]]), crs = crs(rasters[[1]]))
+# Mask of subregion names
+# Used for subregion-level summaries
+summaryRaster_Sub <- rasterize(vect(summaryUnits), summaryRaster, field = "subregionName")
+# Mask of subregion names within each pastoral station
+# Used for used for station summaries separated by subregion
+summaryRaster_SubSite <- rasterize(vect(summaryUnits), summaryRaster, field = "statisticalUnit")
+```
+
+# SubRegion-based condition ranking
+
+Each pixel difference to the mean pixel value for an IBRA subregion sum for Bon Bon portion of subregion Weighted sum of three Bon Bon subregions for overall Bon Bon score
+
+```{r, eval = FALSE}
+# Get subregion average raster values
+means <- zonal(rasters, summaryRaster_Sub, function(x) mean(x, na.rm = TRUE))
+means_ba <- as.vector(means[1, 2:ncol(means)])
+means_kg <- as.vector(means[2, 2:ncol(means)])
+means_rx <- as.vector(means[3, 2:ncol(means)])
+
+# List for rasters to go into
+meansRaster <- vector("list", length(names(rasters)))
+
+# Replace IBRA sub region zone values with the mean raster value for that zone
+for (i in 1:length(meansRaster)) {
+  meansRaster[[i]] <- as.numeric(summaryRaster_Sub)
+  meansRaster[[i]][meansRaster[[i]] == 1] <- means_ba[[i]]
+  meansRaster[[i]][meansRaster[[i]] == 2] <- means_kg[[i]]
+  meansRaster[[i]]s[meansRaster[[i]] == 3] <- means_rx[[i]]
+}
+
+# Convert list to raster stack 
+meansRaster <- rast(meansRaster)
+
+# Pixel value difference from Subregion mean
+meanDifference <- rasters - meansRaster
+
+# Mean of differences from mean for each subregion x station
+meanDifference_mean <- zonal(meanDifference, summaryRaster_SubSite, function(x) mean(x, na.rm = TRUE))
+
+meanDifference_mean <- meanDifference_mean %>% 
+  mutate(site_name = str_split(meanDifference_mean$statisticalUnit, ",", simplify = TRUE)[,1], .after = 1)
+
+sites <- unique(meanDifference_mean$site_name)
+
+# Create tibble for area weighted sums to go into.
+# Rows for each station, columns for each date
+site_weightedMean <- tibble(site_name = sites)
+site_weightedMean <- bind_cols(site_weightedMean, meanDifference_mean[1:nrow(site_weightedMean), 3:ncol(meanDifference_mean)])
+site_weightedMean[ , 2:ncol(site_weightedMean)] <- NA
+
+
+# Loop through each site, and each date. Calculate weighted sum (??) 
+# of all IBRA subregion parts of each site. 
+
+for (i in 1:length(sites)) {
+  for (t in 3:ncol(site_weightedMean)) {
+    siteVals <- meanDifference_mean[which(meanDifference_mean$site_name == sites[[i]]), ]
+    siteAreas <- summaryUnits$shape_area[which(summaryUnits$stationName == sites[[i]])]
+    n_zones <- nrow(siteVals)
+    
+    weights <- vector("numeric", n_zones)
+    weighted_values <- vector("numeric", n_zones)
+    
+    for (w in 1:n_zones) {
+      weights[w] <- siteAreas[w] / sum(siteAreas)
+      weighted_values[w] <- siteVals[w, t] * weights[w]
+    }
+    site_weightedMean[i, t - 1] <- sum(weighted_values) / n_zones
+  }
+}
+
+site_weightedMean <- site_weightedMean %>% pivot_longer(!site_name, names_to = "FileName", values_to = "Mean_Difference")
+site_weightedMean <- site_weightedMean %>% 
+  add_column(positive = as.numeric(NA)) %>% 
+  add_column(date = as.Date(NA), .after = 2)
+
+for (i in 1:nrow(site_weightedMean)) {
+  if (site_weightedMean$Mean_Difference[i] >= 0 & !is.na(site_weightedMean$Mean_Difference[i])) {
+    site_weightedMean$positive[i] <- paste(1)
+  } else {
+    site_weightedMean$positive[i] <- paste(0)
+  }
+}
+
+if (dataset == "TVCm") {
+  yearDate <- str_split(site_weightedMean$FileName, "\\.", simplify = TRUE)[,4:5]
+  yearDate <- paste0(yearDate[, 1], "-", yearDate[ ,2]) %>% 
+    str_replace("A", "")
+  yearDate <- paste0(yearDate, "-", "01")
+  yearDate <- as.Date(yearDate)
+  siteDifference_sum$date <- yearDate
+  siteDifference_sum$date <- as.Date(site_weightedMean$date)
+}
+
+if (dataset == "TVCa") {
+  yearDate <- str_split(site_weightedMean$FileName, "\\.", simplify = TRUE)[ , 4] %>%
+    str_replace("A", "") %>% 
+    paste0("-", "01-01") %>% 
+    as.Date()
+  site_weightedMean$date <- yearDate
+}
+
+
+write_rds(site_weightedMean, file.path(dataPath, "MeanDifference.rds"))
+```
+
+# Biogeographic x Lease TVC summary
+
+## Mean TVC per statistical unit
+
+```{r}
+meanTVC <- zonal(rasters, summaryRaster_SubSite, function(x) mean(x, na.rm = TRUE))
+
+summaryTable <- pivot_longer(meanTVC, names(meanTVC)[2:ncol(meanTVC)], names_to = "fileName", values_to = "TVCa") %>% 
+  arrange(fileName)
+
+summaryTable <- summaryTable %>% 
+  # split file name field at periods. select fourth section.
+  # Replace "A" with nothing. Convert years to factor
+  mutate(year = str_split(summaryTable$fileName, "\\.", simplify = TRUE) %>% 
+           .[ , 4] %>% 
+           str_replace("A", "") %>% 
+           as.factor(), 
+         .after = 1)
+
+# Remove fileName column
+summaryTable <- summaryTable[ , !names(summaryTable) %in% c("fileName")] %>% 
+  mutate(stationName = str_split(summaryTable$statisticalUnit, ",", simplify = TRUE) %>% 
+           .[ , 1],
+         .after = 1) %>% 
+  mutate(subregionName = str_split(summaryTable$statisticalUnit, ",", simplify = TRUE) %>% 
+           .[ , 2],
+         .after = 2)
+
+summaryTable[ , 1:3] <- lapply(summaryTable[1:3], as.factor)
+
+summaryTable <- summaryTable %>%
+  mutate(BonBon = as.factor(ifelse(str_detect(statisticalUnit, "Bon Bon"), 1, 0)))
+
+
+plotData <- summaryTable[which(summaryTable$stationName == "Bon Bon"), ]
+
+# ggplot(plotData, aes(x = year, y = TVCa, group = subregionName, col = subregionName)) +
+#   geom_line(stat = "identity") +
+#   theme(
+#     axis.text.x = element_text(angle = 45, vjust = 0.5)
+#   )
+
+```
+
+## Add additional indicators
+
+```{r}
+# Management category
+## De-stocked, lightly stocked, heavily stocked
+
+
+# Dog Fence
+## North / South
+
+
+# Rainfall
+## Summarised BARRA. Annual rainfall per year per summary unit?
+
+
+# Grazing pressure
+## From aerial kangaroo counts
+## 3 (?) categories. High, medium, low kangaroo numbers
+
+
+# Other indicators??
+
+```
+

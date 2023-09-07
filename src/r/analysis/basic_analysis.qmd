@@ -1,0 +1,290 @@
+---
+title: "basic_analysis"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: setup
+pacman::p_load(tidyverse, arrow, data.table, lme4, mgcv)
+
+dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet")
+```
+
+# PV
+
+## Minimum
+
+```{r}
+# Data pre-analysis
+# Plot distribution of pv min values
+dat[pv_min >= 0]$pv_min %>% hist(1000)
+
+# Get cell values where pv_min is greater than zero
+vec_cell <- dat[pv_min >= 0]$cell %>% unique
+
+# sample 5000 cells with > 0 pv
+tmp_dat <- dat[cell %in% sample(vec_cell, 5000)] %>%
+  # yes/no destocked
+  mutate(treatment = ifelse(tsd <= 0,0,1)) %>%
+  # year centred on 2008
+  mutate(cyear = year - 2008) %>%
+  # station names as factors
+  mutate(fstation = factor(station))
+
+# Relevel stations to make Coondambo first level.
+tmp_dat$fstation <- relevel(tmp_dat$fstation, ref = "Coondambo")
+
+# mixed effects model of min pv against year with random effects term of station
+m0 <- lmer(pv_min ~ year + (1|station),
+           data = tmp_dat)
+
+summary(m0)
+
+m1 <- lmer(pv_min ~ year + (1 + year|station),
+           data = tmp_dat)
+summary(m1)
+
+
+m2 <- lmer(pv_min ~ treatment + year + (1 + year|station),
+           data = tmp_dat)
+summary(m2)
+
+m3 <- lm(pv_min ~ treatment*year,
+           data = tmp_dat)
+summary(m3)
+
+
+# linear model from 2008 onwards for bon bon
+tmp_dat[year >= 2008] %>%
+  .[station == "Bon Bon"] %>%
+  mutate(cyear = year - 2008) %>%
+  lm(pv_min ~ cyear, data = .) %>%
+  summary()
+
+# linear model from 2008 onwards for other stations
+tmp_dat[year >= 2008] %>%
+  .[station != "Bon Bon"] %>%
+  mutate(cyear = year - 2008) %>%
+  lm(pv_min ~ cyear, data = .) %>%
+  summary()
+
+
+tmp_dat[year >= 2008] %>%
+  .[station == "Bon Bon"] %>%
+  mutate(cyear = year-2008) %>%
+  gam(pv_min ~ cyear ,
+      data=.,
+      family = tw()) %>%
+  summary()
+
+
+tmp_dat[year>=2008] %>%
+  .[station != "Bon Bon"] %>%
+  mutate(cyear = year-2008) %>%
+  gam(pv_min ~ cyear + s(fstation,bs='re'),
+      data=.,
+      family = tw()) %>%
+  summary()
+
+
+tmp_dat[year>=2008] %>%
+  # .[station != "Bon Bon"] %>%
+  mutate(cyear = year-2008) %>%
+  gam(pv_min ~ cyear +
+               te(tsd, p_img_12),
+      data=.,
+      family = tw()) %>%
+  summary()
+
+
+
+
+
+tmp_dat[year >= 2008] %>%
+  # .[station != "Bon Bon"] %>%
+  mutate(cyear = year-2008) %>%
+  gam(pv_min ~ fstation*cyear +
+        fstation*p_img_12,
+      data=.) %>%
+  summary()
+
+
+# model for before management
+m_pre <- bam(pv_min ~ fstation*p_img_12 +
+               te(x,y, k=15) +
+               nvis_group,
+             discrete = T,
+             data=tmp_dat[cyear < 0],
+             family=tw())
+summary(m_pre)
+
+# predict values using pre 2008 model
+# calcualte the anomaly between the predicted and true pv_min values
+# After 2008 would hope to see deviation from the predicted.
+cf <- tmp_dat %>%
+  # [cyear >0] %>%
+  mutate(pred = predict(m_pre,type='response',newdata=.)) %>%
+  mutate(anom = pv_min - pred)
+
+
+# By year and station, calculate mean, 2.5% and 97.5$ values of the anomaly
+# Gives one statistic per station per year.
+post <- cf[,.(avg = mean(anom,na.rm=T),
+           lo = quantile(anom,0.025,na.rm=T),
+           hi = quantile(anom,0.975,na.rm=T)),
+        by=.(year,fstation)]
+
+# plot anomaolies
+post %>%
+  ggplot(aes(year, avg,color=fstation))+
+  geom_vline(aes(xintercept = 2008)) +
+  # geom_ribbon(aes(ymin=lo,ymax=hi,fill=fstation),alpha=0.2,col=NA)+
+  geom_line()+
+  scale_color_viridis_d(option='H')
+
+# calculate mean for bon bon and not bon bon
+tmp3 <- post[fstation != "Bon Bon"][,.(avg_no_bon = mean(avg,na.rm = T)),by = year]
+tmp4 <- post[fstation == "Bon Bon"][,.(avg_bon = mean(avg,na.rm = T)),by = year]
+
+# Plot the difference from bon bon and other stations
+# Difference in bon bon and other station anomalies increases over time.
+# Paricularly after 2008.
+merge(tmp3, tmp4, by = 'year') %>%
+  mutate(eff = avg_bon - avg_no_bon) %>%
+  ggplot(aes(year, eff)) +
+  geom_line()
+
+
+# plot effect as the mean of bon bon average anomalies differenced
+# from all anomalies
+# not much different
+post[,.(eff = mean(avg[fstation == "Bon Bon"]) - mean(avg,na.rm = T)), by = year] %>%
+  ggplot(aes(year, eff)) +
+  geom_line()
+
+
+# same thing but just calculated arithmatically from the raw data. not predicted
+# values from a model
+
+tmp_dat$pv_min %>% summary
+# % PV_min anomaly
+tmp_dat[,.(eff = (mean(pv_min[fstation == "Bon Bon"], na.rm = T) - mean(pv_min,na.rm = T))), by = year] %>%
+  ggplot(aes(year, eff)) +
+  geom_line()
+
+# relative anomaly
+tmp_dat[,.(eff = 100 * (mean(pv_min[fstation == " Bon Bon"],na.rm = T) -  mean(pv_min,na.rm = T)) / mean(pv_min, na.rm = T)) , by = year] %>%
+  ggplot(aes(year,eff)) +
+  geom_line()
+```
+
+```{r}
+# Get cell values where pv_min is greater than zero
+vec_cell <- dat[pv_min >= 0]$cell %>% unique
+
+# sample 5000 cells with > 0 pv
+tmp_dat <- dat[cell %in% sample(vec_cell, 5000)] %>%
+  # yes/no destocked
+  mutate(treatment = ifelse(tsd <= 0,0,1)) %>%
+  # year centred on 2008
+  mutate(cyear = year - 2008) %>%
+  # station names as factors
+  mutate(fstation = factor(station))
+
+# Relevel stations to make Coondambo first level.
+tmp_dat$fstation <- relevel(tmp_dat$fstation, ref = "Coondambo")
+```
+
+
+```{r}
+# mean of pv min per year for bon bon
+# minus mean of pv min per year for all stations
+# basically, the deviation of bon bon from the surrounding stations.
+dat_1 <- tmp_dat[,.(eff = (mean(pv_min[fstation == "Bon Bon"], na.rm = T) - mean(pv_min[fstation != "Bon Bon"], na.rm = T))) , by = year]
+
+pv_min <- ggplot(dat_1, aes(year, eff)) +
+  geom_line() +
+  geom_smooth(data = dat_1[(year <= 2008) == T], method = "lm", se = F) +
+  geom_smooth(data = dat_1[(year > 2008) == T], method = "lm", se = F) +
+  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
+  labs(title = "PV minimum")
+```
+
+# Max PV
+
+```{r}
+dat_2 <- tmp_dat[,.(eff = (mean(pv_max[fstation == "Bon Bon"], na.rm = T) - mean(pv_max[fstation != "Bon Bon"], na.rm = T))) , by = year]
+  
+pv_max <- ggplot(dat_2, aes(year, eff)) +
+  geom_line() +
+  geom_smooth(data = dat_2[(year <= 2008) == T], method = "lm", se = F) +
+  geom_smooth(data = dat_2[(year > 2008) == T], method = "lm", se = F) +
+  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
+  labs(title = "PV maximum")
+
+```
+
+# NPV
+# Minimim
+
+```{r}
+dat_3 <- tmp_dat[,.(eff = (mean(npv_min[fstation == "Bon Bon"], na.rm = T) - mean(npv_min[fstation != "Bon Bon"], na.rm = T))) , by = year]
+
+npv_min <- ggplot(dat_3, aes(year, eff)) +
+  geom_line() +
+  geom_smooth(data = dat_3[(year <= 2008) == T], method = "lm", se = F) +
+  geom_smooth(data = dat_3[(year > 2008) == T], method = "lm", se = F) +
+  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
+  labs(title = "NPV minimum")
+```
+
+# Maximum
+
+```{r}
+dat_4 <- tmp_dat[,.(eff = (mean(npv_max[fstation == "Bon Bon"], na.rm = T) - mean(npv_max[fstation != "Bon Bon"], na.rm = T))) , by = year]
+
+npv_max <- ggplot(dat_4, aes(year, eff)) +
+  geom_line() +
+  geom_smooth(data = dat_4[(year <= 2008) == T], method = "lm", se = F) +
+  geom_smooth(data = dat_4[(year > 2008) == T], method = "lm", se = F) +
+  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
+  labs(title = "NPV maximum")
+```
+
+# Bare
+# Minimim
+
+```{r}
+dat_5 <- tmp_dat[,.(eff = (mean(bare_min[fstation == "Bon Bon"], na.rm = T) - mean(bare_min[fstation != "Bon Bon"], na.rm = T))) , by = year]
+
+bare_min <- ggplot(dat_5, aes(year, eff)) +
+  geom_line() +
+  geom_smooth(data = dat_5[(year <= 2008) == T], method = "lm", se = F) +
+  geom_smooth(data = dat_5[(year > 2008) == T], method = "lm", se = F) +
+  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
+  labs(title = "Bare minimum")
+```
+
+# Maximum
+
+```{r}
+dat_6 <- tmp_dat[,.(eff = (mean(bare_max[fstation == "Bon Bon"], na.rm = T) - mean(bare_max[fstation != "Bon Bon"], na.rm = T))) , by = year]
+
+bare_max <- ggplot(dat_6, aes(year, eff)) +
+  geom_line() +
+  geom_smooth(data = dat_6[(year <= 2008) == T], method = "lm", se = F) +
+  geom_smooth(data = dat_6[(year > 2008) == T], method = "lm", se = F) +
+  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
+  labs(title = "Bare maximum")
+```
+
+
+```{r}
+ggpubr::ggarrange(pv_min, npv_min, bare_min, 
+                  pv_max, npv_max, bare_max,
+                  ncol = 3,
+                  nrow = 2)
+```
+

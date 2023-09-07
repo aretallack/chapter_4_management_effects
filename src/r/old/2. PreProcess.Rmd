@@ -1,0 +1,130 @@
+---
+title: "Analysis of MODIS EVI"
+author: "Angus Retallack"
+date: "2022-07-27"
+output: html_document
+---
+
+Takes input rasters
+ - 8 day fractional cover OR 
+ - monthly fractional cover OR 
+ - EVI
+ 
+and
+- reprojects / crops to match study area,
+- Normalises FC to ensure sum to 100
+- write processed rasters to .tif
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, terra, sf)
+
+product <- "FCm" # Raster product of interest (FC8day, FCm or EVI)
+```
+
+# Study Extent
+
+```{r Import vector data}
+### Pastoral stations ###
+stations <- read_sf("E:/Data/Basedata/Mapland/Statewide/ADMIN_PastoralStations_GDA2020.shp") %>% 
+  st_cast("POLYGON")
+stations$geometry <- st_transform(st_geometry(stations), "EPSG:28353")
+stations$geometry_wgs <- st_transform(st_geometry(stations), "EPSG:4326")
+
+names(stations) <- tolower(names(stations))
+
+studyExtent <- stations[which(stations$name %in% c("Stuart Creek", "Andamooka", "Purple Downs", "Roxby Downs", "Mulgaria", "Olympic Dam", "Yellabinna RR")), ] %>% st_geometry() %>% 
+  st_bbox()
+  vect() %>%
+  ext()
+
+calc_angle <- function(lon,lat) {
+  cent_lon <- mean(lon)
+  cent_lat <- mean(lat)
+  ang <- atan2(lat - cent_lat, lon - cent_lon)
+
+  return(ang)
+}  
+  
+bbox <- stations[which(stations$name %in% c("Stuart Creek", "Andamooka", "Purple Downs", "Roxby Downs", "Mulgaria", "Olympic Dam", "Yellabinna RR")), ] %>%
+  st_coordinates() %>% 
+  as_tibble() %>%
+  summarise(xmin = min(X),ymin = min(Y), xmax = max(X),  ymax = max(Y)) %>%
+  gather(x,lon,c('xmin','xmax')) %>%
+  gather(y,lat,c('ymin','ymax')) %>%
+  st_as_sf(coords=c('lon','lat'),crs=28353,remove=F) %>%
+  mutate(angle = calc_angle(lat,lon)) %>%
+  arrange(angle) %>%
+  summarise(do_union=FALSE) %>%
+  st_cast("POLYGON") %>% 
+  st_geometry() %>% 
+  st_transform("EPSG:4326")
+
+
+# plot(rasters[[1]]) +
+#   plot(bbox, add = T) +
+
+```
+
+# Import Fractional Cover
+
+```{r Import Raster data}
+basePath <- "E:/Data/MODIS/GuerschmanFC/Monthly"
+
+filePaths <- file.path(basePath) %>% 
+  list.files(., "*.tif$", full.names = TRUE)
+
+outputPath <- file.path(basePath, "Processed")
+
+####################
+### Read rasters ###
+####################
+
+rasters <- rast(filePaths) %>%
+  crop(ext(vect(st_buffer(bbox, 10000)))) %>% 
+  project("EPSG: 28353") %>%
+  crop(st_transform(bbox, "EPSG: 28353"))
+```
+
+## Rename rasters
+
+```{r}
+if (product == "EVI") {
+  eviNames <- names(rasters)
+  eviYears <- str_split(eviNames, "_", simplify = TRUE)[ , 3]
+  eviDays <- as.numeric(str_split(eviNames, "_", simplify = TRUE)[ , 4])
+  eviDates <- as.Date(eviDays - 1, origin = paste0(eviYears, "-01-01"))
+  eviNamesNew <- paste0(str_split(eviNames, "_", simplify = TRUE)[ , 1], "_", str_split(eviNames, "_", simplify = TRUE)[ , 2], "_", eviDates)
+
+  names(rasters) <- eviNamesNew
+}
+```
+
+## Normalise FC to sum to 100
+
+```{r}
+# # If the product is fractional cover then normalise to force sum to 100
+# 
+# if (product %in% c("FCm", "FC8day")) {
+#   for (i in seq(1, length(names(rasters)), 3)) {
+#     sum <- sum(rasters[[i:(i + 2)]])
+#     rasters[[i]] <- (rasters[[i]] / sum) * 100
+#     rasters[[i + 1]] <- (rasters[[i + 1]] / sum) * 100
+#     rasters[[i + 2]] <- (rasters[[i + 2]] / sum) * 100
+#   }
+# }
+```
+
+# Write rasters
+
+Save processed rasters as .tif
+
+```{r, eval = FALSE}
+writeTifs <- function(rasterStack, datatype) {
+    writeRaster(rasterStack, paste0(file.path(outputPath), "/", names(rasterStack), ".tif"), datatype = datatype , overwrite = TRUE)
+  }
+  
+lapply(rasters, writeTifs, datatype = "INT1U")
+
+```

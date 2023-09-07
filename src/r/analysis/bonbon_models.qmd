@@ -1,0 +1,270 @@
+---
+title: "Final Models"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+Analysis of Bon Bon and the area directly surrounding Bon Bon. Know more about the management at this particular region
+
+
+```{r}
+#| label: setup
+pacman::p_load(tidyverse, sf, gstat, mgcv, mgcViz, gratia, data.table, lubridate)
+
+# plotting function using mgcViz
+# fast way to quickly visualize all terms, including parametric
+fn_viz <- function(mod){
+  getViz(mod) %>% 
+    plot(allTerms = T) %>%
+    print(pages = 1)
+} 
+
+# Plotting functoin using gratia
+fn_viz_1 <- function(mod, smooth_term){
+  # get xvariable name
+  xvar <- str_remove(smooth_term, "s\\(") %>% 
+    str_remove(., "\\)")
+  
+  p_out <- gratia::smooth_estimates(mod) %>% 
+    filter(smooth == smooth_term) %>% 
+    # pivot_longer(cols=c(est,se,month)) %>% 
+    ggplot(aes( !!ensym(xvar), est)) +
+    geom_ribbon(aes(!!ensym(xvar), 
+                    ymax = est + 1.96 * se, # assuming an "identity" link
+                    ymin = est - 1.96 * se), 
+                alpha = 0.5, 
+                lty = 0) +
+    geom_line() +
+    labs(x = xvar,
+         y = "Partial Effect") +
+    coord_cartesian(expand = F) +
+    theme_linedraw() +
+    theme(panel.grid = element_blank(),
+          text = element_text(size = 18))
+  
+  return(p_out)
+}
+
+fn_viz_stations <- function(mod) {
+  vec_sm2 <- smooths(mod)
+  gratia::smooth_estimates(mod) %>%
+    filter(smooth %in% vec_sm2[2:32]) %>%
+    ggplot(aes(ddate, est, color = station)) +
+    # geom_ribbon(aes(!!ensym(xvar),
+    #                 ymax=est+1.96*se, # assuming an "identity" link
+    #                 ymin=est-1.96*se),
+    #             alpha=0.5,
+    #             lty=0)+
+    geom_line(
+      aes(group = station),
+      lwd = 1.5,
+      color = 'black'
+    ) +
+    geom_line() +
+    geom_line(
+      data = . %>%
+        filter(station == 'Bon Bon'),
+      lwd = 2,
+      col = 'red'
+    ) +
+    labs(x = "Date",
+         y = "Partial Effect") +
+    scale_color_viridis_d(option = 'H') +
+    coord_cartesian(expand = F) +
+    theme_linedraw() +
+    theme(panel.grid = element_blank())
+}
+
+fn_validate <- function(testData, mod) {
+  
+tmp_pred <- testData %>% 
+  mutate(pred = predict(mod, newdata=., type='response'))
+
+metrica::R2(obs = tmp_pred$pv,
+            pred = tmp_pred$pred) %>% 
+  print()
+metrica::RMSE(obs = tmp_pred$pv,
+              pred = tmp_pred$pred) %>% 
+  print()
+  
+}
+```
+
+# Import data
+
+```{r}
+df <- arrow::read_parquet("./outputs/tables/bonbon_minmax.parquet")
+df <- df %>% 
+  filter(!year == 2023)
+df$nvis_group <- droplevels(df$nvis_group)
+df$nvis_group <- factor(df$nvis_group, ordered = FALSE)
+```
+
+# Select sample cells
+
+```{r}
+train_cells <- df$cell %>% 
+  unique() %>%
+  sample(length(.) * 0.75)
+
+test_cells <- df$cell %>% 
+  unique() %>% 
+  .[which(!. %in% train_cells)]
+
+train_df <- df[which(cell %in% train_cells), ]
+
+img_3mo_99 <- train_df$p_img_3 %>% quantile(probs = c(0.95), na.rm = T)
+img_12mo_99 <- train_df$p_img_12 %>% quantile(probs = c(0.95), na.rm = T)
+```
+
+# PV models
+
+https://stats.stackexchange.com/questions/401401/what-is-the-acceptable-level-of-concurvity
+
+```{r eval = FALSE}
+# Structure taken out everything that makes the model a GAM.
+# Basically a GLM - because no smooths.
+# 6 mods, pv, npv, bare * min / max
+# min = perennial
+# max = annual
+
+mod_pv_min <- bam(pv_min ~
+                    s(tsd, k = 5) + #(maybe tsd * NVIS)
+                    # s(ddate, bs = "ts") + # Correlated with TSD
+                    # s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+                    # s(tmean_3, k = 5) +
+                    # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+                    p_img_3 + # * nvis_group +
+                    p_img_12, # * nvis_group,
+                    # p_img_36 * nvis_group,
+                    method = "fREML",
+                    discrete = T,
+                    data = train_df %>%
+                             filter(!is.na(pv_min)))
+
+
+fn_viz(mod_pv_min)
+
+ %>% 
+                    filter(p_img_3 < img_3mo_99) %>% 
+                    filter(p_img_12 < img_12mo_99)
+
+mod_pv_max <- bam(pv_max ~
+                    s(tsd, k = 5) + #(maybe tsd * NVIS)
+                    # s(ddate, bs = "ts") + # Correlated with TSD
+                    # s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+                    # s(tmean_3, k = 5) +
+                    # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+                    p_img_3 + # * nvis_group +
+                    p_img_12, # * nvis_group,
+                    # p_img_36 * nvis_group,
+                    method = "fREML",
+                    discrete = T,
+                    data = train_df %>% filter(!is.na(pv_max)))
+
+fn_viz(mod_pv_max)
+
+
+# concurvity(pv)
+# summary(pv)
+fviz(mod_pv_c)
+fn_validate(df[which(cell %in% test_cells), ], mod_pv)
+
+# fviz_1(pv, "s(ddate)")
+# vec_sm <- gratia::smooths(pv)
+# l_p <- lapply(vec_sm, fviz_1, mod = pv)
+# patchwork::wrap_plots(l_p, ncol = 2)
+```
+# Test plot
+
+```{r}
+train_df %>% 
+  filter(!is.na(pv_max)) %>%
+  group_by(year) %>% 
+  summarise(pv_max_mean = mean(pv_max)) %>% 
+  ggplot(aes(x = year, y = pv_max_mean)) +
+  geom_line(stat = "identity")
+
+train_df %>% 
+  group_by(year) %>% 
+  filter(station == "Bon Bon") %>% 
+  summarise(tsd = mean(tsd)) %>% 
+  ggplot(aes(x = year, y = tsd)) +
+  geom_line(stat = "identity")
+
+
+train_df %>% 
+  filter(!is.na(pv_min)) %>%
+  group_by(year) %>% 
+  summarise(pv_min_mean = mean(pv_min)) %>% 
+  ggplot(aes(x = year, y = pv_min_mean)) +
+  geom_line(stat = "identity") +
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = 'cs'))
+  
+```
+
+
+# NPV models
+
+```{r eval = FALSE}
+mod_npv_min <- bam(npv_min ~
+                    s(tsd) + #(maybe tsd * NVIS)
+                    # s(ddate, bs = "ts") + # Correlated with TSD
+                    # s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+                    # s(tmean_3, k = 5) +
+                    # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+                    s(p_img_3) + # * nvis_group +
+                    s(p_img_12), # * nvis_group,
+                    # p_img_36 * nvis_group,
+                    method = "fREML",
+                    discrete = T,
+                    data = train_df %>% filter(!is.na(npv_min)))
+fn_viz(mod_npv_min)
+
+mod_npv_max <- bam(npv_max ~
+                    s(tsd, k = 5) + #(maybe tsd * NVIS)
+                    # s(ddate, bs = "ts") + # Correlated with TSD
+                    # s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+                    # s(tmean_3, k = 5) +
+                    # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+                    p_img_3 + # * nvis_group +
+                    p_img_12, # * nvis_group,
+                    # p_img_36 * nvis_group,
+                    method = "fREML",
+                    discrete = T,
+                    data = train_df %>% filter(!is.na(npv_max)))
+fn_viz(mod_npv_max)
+```
+
+# Bare models
+
+```{r eval = FALSE}
+mod_bare_min <- bam(bare_min ~
+                    s(tsd) + #(maybe tsd * NVIS)
+                    # s(ddate, bs = "ts") + # Correlated with TSD
+                    # s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+                    # s(tmean_3, k = 5) +
+                    # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+                    s(p_img_3) + # * nvis_group +
+                    s(p_img_12), # * nvis_group,
+                    # p_img_36 * nvis_group,
+                    method = "fREML",
+                    discrete = T,
+                    data = train_df %>% filter(!is.na(bare_min)))
+fn_viz(mod_bare_min)
+
+mod_bare_max <- bam(bare_max ~
+                    s(tsd, k = 5) + #(maybe tsd * NVIS)
+                    # s(ddate, bs = "ts") + # Correlated with TSD
+                    # s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+                    # s(tmean_3, k = 5) +
+                    # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+                    p_img_3 + # * nvis_group +
+                    p_img_12, # * nvis_group,
+                    # p_img_36 * nvis_group,
+                    method = "fREML",
+                    discrete = T,
+                    data = train_df %>% filter(!is.na(bare_max)))
+fn_viz(mod_bare_max)
+```

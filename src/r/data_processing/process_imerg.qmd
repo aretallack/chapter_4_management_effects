@@ -1,0 +1,70 @@
+---
+title: "1.2. Process_GPM_IMERG"
+format: html
+---
+
+
+```{r}
+#| label: setup
+pacman::p_load(terra, tidyverse, stringr, sf, lubridate)
+
+studyExtent <- read_sf("./outputs/vector/study_area.gpkg") %>% st_geometry()
+```
+
+```{r}
+basePath <- "E:/Data/Climate_Data/Precip_GPM_IMERG/"
+filePaths <- list.files(basePath, "*.HDF5$", full.names = TRUE, recursive = FALSE)
+outputPath <- "./outputs/raster/imerg_precipitation/"
+
+rasters <- rast(filePaths)
+rasters <- rasters[[which(names(rasters) == "precipitation")]]
+# Set extent & crs
+ext(rasters) <- ext(-90.0, 90.0, -180.0, 180.0)
+crs(rasters) <- "epsg:4326"
+
+names(rasters) <- list.files(basePath, ".HDF5$", recursive = FALSE) %>% 
+  str_remove(".HDF5")
+
+rasters <- lapply(rasters, function(x) {
+  x <- x %>%
+  t() %>%
+  flip()
+  return(x)
+})
+
+rasters <- rast(rasters)
+
+rasters <- crop(rasters, studyExtent %>% st_transform("EPSG:4326") %>% st_buffer(10000)) %>% 
+  project("EPSG:28353") %>% 
+  crop(studyExtent %>% st_buffer(5000))
+
+# Add date to rasters. Extracted from file names
+time(rasters) <- names(rasters) %>% 
+  str_split(., "\\.", simplify = T) %>% 
+  .[, 5] %>% 
+  str_split("-", simplify = T) %>% 
+  .[, 1] %>% 
+  {paste(str_sub(., 1, 4), str_sub(., 5, 6), str_sub(., 7, 8), sep = "/")} %>% 
+  as_date()
+
+# Convert units from mm/h to mm/month
+convertUnits <- function(x) {
+  date <- time(x)
+  nDays <- as.numeric(days_in_month(date))
+  output <- nDays * 24 * x
+  return(output)
+}
+
+rasters <- rast(lapply(rasters, convertUnits))
+```
+
+# Save as ncdf
+
+```{r}
+start_date <- time(rasters)[1] %>% 
+  str_remove_all("-")
+end_date <- time(rasters)[length(time(rasters))] %>% 
+  str_remove_all("-")
+
+writeCDF(rasters, file.path(outputPath, paste0("3B-MO.MS.MRG.3IMERG_", start_date, "_", end_date, ".nc")), varname = "imerg_precipitation_monthly", compression = 6, overwrite = T)
+```

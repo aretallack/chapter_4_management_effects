@@ -1,0 +1,534 @@
+---
+title: "Broadscale models"
+format: html
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, sf, terra)
+```
+
+# Import data
+
+```{r}
+rasters <- "E:/PhD_Chapters/Chapter_3_Effect_of_Management_on_FC/Processed_Data/Input_Raster_Variables/GuerschmanFC_Monthly/masked/" %>% 
+  list.files("*.tif$", full.names = T) %>%
+  rast()
+
+blankRast <- rasters[[1]]
+blankRast[!is.na(blankRast)] <- NA
+
+
+pv <- rasters %>% 
+  .[[which(str_detect(names(.), "^PV"))]]
+npv <- rasters %>% 
+  .[[which(str_detect(names(.), "NPV"))]]
+bare <- rasters %>% 
+  .[[which(str_detect(names(.), "BARE"))]]
+
+
+stations <- "E:/PhD_Chapters/Chapter_3_Effect_of_Management_on_FC/Processed_Data/Input_Vector_Data/stations.shp" %>% 
+  vect() %>% 
+  rasterize(blankRast, "NAME")
+stations[is.na(pv[[1]])] <- NA
+
+stations <- droplevels(stations)
+
+nvis <- "E:/Data/Basedata/Environmental/NVIS/FGDB_NVIS6_0_AUST_EXT_MVG/NVIS6_0_AUST_EXT_MVG_ALB.tif" %>% 
+  rast() %>% 
+  project(blankRast)
+nvis[is.na(pv[[1]])] <- NA
+
+nvis <- droplevels(nvis)
+```
+
+# Annual minimum anomoly
+
+```{r}
+calc_min_anomaly <- function(x) {
+  rolling_min <- roll(x, 12, min, "from")
+  
+  ref <- rolling_min %>% 
+    .[[month(time(.)) == 1]] %>% 
+    mean(na.rm = T)
+  
+  anomaly <- lapply(rolling_min, \(x) x - ref) %>% 
+    rast()
+  
+  return(anomaly)
+}
+
+pv_anomaly <- calc_min_anomaly(pv)
+npv_anomaly <- calc_min_anomaly(npv)
+bare_anomaly <- calc_min_anomaly(bare)
+```
+
+# summarise anomalies by station
+
+```{r}
+# Function to extract a variety of anomaly statistics grouped by station
+
+get_stats <- function(x) {
+  # Convert anomaly rasters to dataframe
+  df <- as.data.frame(c(stations, nvis, x), xy = T) 
+
+  # Extract dates from raster names and rename columns
+  names(df)[-c(1:4)] <- names(df)[-c(1:4)] %>% 
+    str_split("\\.", simplify = T) %>%
+    .[, 5:6] %>% 
+    apply(1, \(x) str_flatten(x, "-")) %>%
+    lapply(., \(x) paste0(x, "-01")) %>%
+    unlist() %>%
+    as_date() %>%
+    as.character()
+  
+  # Rename columns
+  names(df)[3] <- "station"
+  names(df)[4] <- "nvis"
+  
+  # Pivot to have date as column and values under anomaly
+  df <- df %>% 
+    pivot_longer(5:ncol(.), names_to = "date", values_to = "anom")
+
+  # Group anomaly datafrme by station and date and calcualate stats
+  df %>%
+    group_by(station, date) %>% 
+    summarise(mean = mean(anom, na.rm = T),
+              p_5 = quantile(anom, 0.05, na.rm = T),
+              median = median(anom, na.rm = T),
+              p_95 = quantile(anom, 0.95, na.rm = T)
+              ) %>% 
+    ungroup() %>% 
+    return()
+}
+
+pv_stats <- get_stats(pv_anomaly)
+npv_stats <- get_stats(npv_anomaly)
+bare_stats <- get_stats(bare_anomaly)
+
+# Function to get anomalies relative to a group of stations
+# i.e. for Bon Bon and surrounding, compare anomalies relative to the
+# non-managed stations. input are stats dataframes above. 
+
+get_relative_stats <- function(x, stations, managed_station) {
+  data <- x %>% 
+    filter(station %in% stations)
+  ref <- data %>% 
+    filter(station != managed_station) %>% 
+    group_by(date) %>% 
+    summarise(mean_ref = mean(mean),
+              p_5_ref = mean(p_5),
+              median_ref = mean(median),
+              p_95_ref = mean(p_95)) 
+    
+  data <- merge(data, ref, by = "date") %>% 
+    mutate(mean_adj = mean - mean_ref, .after = 3) %>% 
+    mutate(p_5_adj = p_5 - p_5_ref, .after = 5) %>% 
+    mutate(median_adj = median - median_ref, .after = 7) %>% 
+    mutate(p_95_adj = p_95 - p_95_ref, .after = 9)
+  
+  data <- data[, -c(11:14)]
+  
+  return(data)
+}
+
+
+# Function to plot anomalies / adjusted anomalies
+plot_anoms <- function(data) {
+  ggplot(data, aes(x = as_date(date), y = mean_adj, colour = station)) +
+    geom_smooth(method = "lm") +
+    geom_point()
+  }
+
+
+pv_stats_bonbon <- get_relative_stats(pv_stats, 
+                                      stations = c("Bon Bon", "Coondambo", "Mount Eba", "North Well", "Mount Vivian"),
+                                      managed_station = "Bon Bon") 
+npv_stats_bonbon <- get_relative_stats(npv_stats, 
+                                      stations = c("Bon Bon", "Coondambo", "Mount Eba", "North Well", "Mount Vivian"),
+                                      managed_station = "Bon Bon") 
+bare_stats_bonbon <- get_relative_stats(bare_stats, 
+                                      stations = c("Bon Bon", "Coondambo", "Mount Eba", "North Well", "Mount Vivian"),
+                                      managed_station = "Bon Bon") 
+
+plot_anoms(pv_stats_bonbon)
+plot_anoms(npv_stats_bonbon)
+plot_anoms(bare_stats_bonbon)
+
+
+pv_stats_yellabinna <- get_relative_stats(pv_stats, 
+                                      stations = c("Yellabinna RR", "Mobella", "Mulgathing"),
+                                      managed_station = "Yellabinna RR") 
+plot_anoms(pv_stats_yellabinna)
+
+```
+
+```{r}
+od_pv <- bam(pv ~
+              cattle_area +
+              s(ddate, bs = "ts") +
+              s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+              # s(tmean_3, k = 5) +
+              # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+              # p_img_36 * nvis_group,
+            method = "fREML",
+            discrete = T,
+            data = DFod[which(cell %in% train_cells_od), ])
+
+fn_viz(od_pv)
+fn_validate(DFod[which(cell %in% test_cells_od), ], od_pv)
+
+od_npv <- bam(npv ~
+              cattle_area +
+              s(ddate, bs = "ts") +
+              s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+              # s(tmean_3, k = 5) +
+              # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+              # p_img_36 * nvis_group,
+            method = "fREML",
+            discrete = T,
+            data = DFod[which(cell %in% train_cells_od), ])
+
+fn_viz(od_npv)
+
+od_bare <- bam(bare ~
+              cattle_area +
+              s(ddate, bs = "ts") +
+              s(month, bs = "cc") + # Rainfall dominated system, therefore maybe no need for temperature
+              # s(tmean_3, k = 5) +
+              # s(vpd_3, k = 5) + # Anomoly of vpd (?) probably not big impact
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+              # p_img_36 * nvis_group,
+            method = "fREML",
+            discrete = T,
+            data = DFod[which(cell %in% train_cells_od), ])
+
+fn_viz(od_bare)
+```
+
+# Broad scale analysis
+
+Analysis of wider region, looking at general drivers of change
+
+models b(broad)\_pv, b_npv, b_bare
+
+## GAMs
+
+```{r eval = FALSE}
+b_pv <- bam(pv ~
+              te(x, y, fx = T, k = 10) +
+              s(ddate, by = station, bs = "fs") +
+              s(month, bs = "cc") +
+              # s(tmean_3, k = 5) +
+              # s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+            method = "fREML",
+            discrete = T,
+            data = DF[which(cell %in% sample_cells), ])
+# concurvity(b_pv)
+summary(b_pv)
+fn_viz(b_pv)
+fn_viz_stations(b_pv)
+
+b_npv <- bam(npv ~
+              te(x, y, fx = T, k = 10) +
+              s(ddate, by = station, bs = "bs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+            method = "fREML",
+            discrete = T,
+            data = DF[which(cell %in% sample_cells), ])
+
+fn_viz(b_npv)
+fn_viz_stations(b_npv)
+
+b_bare <- bam(bare ~
+              te(x, y, fx = T, k = 10) +
+              s(ddate, by = station, bs = "bs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+            method = "fREML",
+            discrete = T,
+            data = DF[which(cell %in% sample_cells), ])
+
+fn_viz(bare)
+```
+
+## Anomaly-based regression
+
+```{r}
+# sample dataset
+ss <- DF[which(cell %in% train_cells), ]
+
+ref_year <- 2009 # Year that referece means will be calculated before
+
+# Calculate "climatology" or monthly means, and SD of PV per month across years
+# Mean and standard deviation per location per month 
+# Creates reference values from pre-2009
+ss_refs <- ss[ddate < ref_year][,.(pv_u = mean(pv,na.rm = T), 
+                               pv_sd = sd(pv,na.rm = T),
+                               npv_u = mean(npv, na.rm = T),
+                               npv_sd = sd(pv, na.rm = T),
+                               bare_u = mean(bare, na.rm = T),
+                               bare_sd = sd(bare, na.rm = T)), by = .(x, y, month)]
+
+# Add these summary stats to original dataset
+ss <- merge(ss, ss_refs, by = c("x", "y", "month"))
+
+# calculation of anomalies, and z-score transformed anomalies
+# Differece of each pv value to the mean pv value for that cell and month (calculated before 2009)
+ss[,`:=`(pv_anom = pv - pv_u)] # abs anomaly, by month
+ss[,`:=`(pv_anom_sd = pv_anom/pv_sd)] # z-score transformed anomaly
+ss[,`:=`(npv_anom = npv - npv_u)]
+ss[,`:=`(npv_anom_sd = npv_anom/npv_sd)]
+ss[,`:=`(bare_anom = bare - bare_u)]
+ss[,`:=`(bare_anom_sd = bare_anom/bare_sd)]
+
+# aggregration to year per pixel, for min/avg/max of pv_anom
+# i.e. per cycle minimum, maximum and mean (annual cycles)
+ss2 <- ss[,.(pv_anom_min = min(pv_anom, na.rm = T),
+           pv_anom_avg = mean(pv_anom, na.rm = T),
+           pv_anom_max = max(pv_anom, na.rm = T),
+           npv_anom_min = min(npv_anom, na.rm = T),
+           npv_anom_avg = mean(npv_anom, na.rm = T),
+           npv_anom_max = max(npv_anom, na.rm = T),
+           bare_anom_min = min(bare_anom, na.rm = T),
+           bare_anom_avg = mean(bare_anom, na.rm = T),
+           bare_anom_max = max(bare_anom, na.rm = T)), 
+        by = .(x, y, station, nvis_group, ibra_subregion, year)] %>% 
+  filter(year >= ref_year)
+
+
+#################################################################
+### Function to plot trend of selected stations cover anomaly ###
+#################################################################
+
+# visualize trends of anoms
+# Plots increase in average, max and minimum anomolies
+compare_stations <- function(stations, cover_type){
+  data <- ss2 %>% 
+    select(year, station,starts_with(cover_type)) %>% 
+    pivot_longer(-c("year","station"))
+  
+  
+    ggplot(data, aes(year,value, group = station)) +
+    geom_smooth(method = 'lm', se = F, col = 'grey', lwd = 0.5) +
+    geom_smooth(data = data %>% 
+                  filter(station %in% stations), 
+                method = 'lm', se = F,
+                aes(colour = station),
+                lwd = 2) + 
+    facet_wrap(~name, dir = "h")
+}
+
+
+###################################################################
+### Function to compare stations pre-reference cover percentage ###
+###################################################################
+
+compare_refs <- function(stations) {
+  data <- ss %>% 
+    select(year, station, nvis_group, pv_u) %>% 
+    filter(year < 2009) %>%
+    group_by(station) %>% 
+    summarise(mean = mean(pv_u), .groups = "keep") %>% 
+    arrange(mean)
+
+  
+  ggplot(data, aes(reorder(station, mean), mean)) +
+    geom_bar(stat = "identity", fill = "grey70") +
+    geom_bar(data = data %>% filter(station %in% stations), stat = "identity", aes(fill = station)) +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
+    )
+}
+
+
+####################################################################################
+### Compare stations pre-reference mean cover to post-reference anomaly response ###
+####################################################################################
+
+dat <- ss2 %>%
+    select(year, station, starts_with(c("pv", "npv", "bare"))) %>%
+    pivot_longer(-c("year","station"))
+  
+# Initial tibble for intercepts to go into
+intercepts <- tibble(station = rep(unique(dat$station), each = 9),
+                     name = rep(unique(dat$name), times = length(unique(dat$station))),
+                     intercept = as.numeric(NA))
+
+for (n in 1:9) {
+  for (i in 1:length(unique(dat$station))) {
+    dat2 <- dat %>% 
+      filter(station == unique(.$station)[i]) %>% 
+      filter(name == unique(dat$name)[n]) %>% 
+      filter(!is.na(value)) %>% 
+      filter(!is.infinite(value))
+    
+    lm <- lm(value ~ year, data = dat2) 
+    
+    intercepts$intercept[which(intercepts$station == unique(dat$station)[i] & intercepts$name == unique(dat$name)[n])] <- summary(lm)$coefficients[2, 1]
+    # print(i)
+    }
+  }
+    
+data <- ss %>% 
+  select(year, station, pv, npv, bare) %>% 
+  filter(year < 2009) %>%
+  pivot_longer(-c("year", "station")) %>% 
+  group_by(station, name) %>%
+  summarise(pre2009_mean = mean(value, na.rm = T), .groups = "keep") %>% 
+  rename("cover" = "name")
+
+get_cover <- function(x) str_split(x, "_", simplify = T)[,1]
+
+intercepts <- intercepts %>% 
+  mutate(cover = get_cover(name), .after = 2)
+
+intercepts <- merge(intercepts, data, by = c("station", "cover"))
+
+
+response_vs_ref <- function(stations, cover_type) {
+  ggplot(intercepts %>% 
+           filter(cover == cover_type), 
+         aes(x = pre2009_mean, y = intercept)) +
+    geom_point() +
+    geom_point(data = intercepts %>% 
+                 filter(cover == cover_type) %>% 
+                 filter(station %in% stations),
+               aes(colour = station),
+               size = 3) +
+    facet_wrap(~name, dir = "v")
+}
+
+compare_stations("Bon Bon", "pv")
+
+compare_stations(c("Yellabinna RR", "Wilgena", "Mulgathing", "Mobella"), "pv")
+compare_stations(c("Bon Bon", "Mount Eba", "Coondambo", "North Well", "Mount Vivian"), "pv")
+response_vs_ref(c("Bon Bon", "Mount Eba", "Coondambo", "North Well", "Mount Vivian"), "bare")
+```
+
+## reconstructing the predictions
+
+```{r}
+# 
+# # 'simple' linear model of 
+# jj1 <- gam(I(pv_anom_max + 10) ~ 
+#              # te(x,y)+
+#              # s(nvis_group, bs='re') + # random effect
+#              year * station, 
+#        data = ss2[year >= 2008], 
+#        family = Gamma(link = 'log'))
+# summary(jj1)
+
+# library(visreg)
+# visreg(jj1, xvar='year',by='station')
+
+ss2 %>% select(x,y) %>% colMeans()
+
+# simulate response to visualize the interaction of station with time
+
+expand_grid(year = 2008:2022,
+            station = ss$station %>% unique, 
+            x = 558589.7,
+            y = 6636685.1 ) %>% 
+  mutate(pred = predict(jj1,newdata = ., type = 'response')) %>% 
+  ggplot(data = .,aes(year, pred,color = station)) +
+  geom_line(aes(group = station), col = 'black',lwd = 1) +
+  geom_line() +
+  geom_line(data = . %>%
+              filter(station == "Yellabinna RR"),
+            col = 'red',
+            lwd = 2) +
+  geom_line(data = . %>%
+              filter(station == "Bon Bon"),
+            col = 'blue',
+            lwd = 2) +
+  scale_color_viridis_d(option = 'H') +
+  labs(y = "Estimated annual-max-PV anomaly trend")
+
+length(coef(jj1)) # coefficients estimated from the model
+dim(model.matrix(jj1)) # model matrix, is all of the covariates for each row, in matrix form
+
+vec_jnk1 <- model.matrix(jj1) %*% coef(jj1) # matrix multiplication of covariates by coefficients
+vec_jnk1 <- as.array(vec_jnk1[,1]) # cast to array
+
+predict(jj1, type = 'response') == as.array(vec_jnk1) # the in-built prediction is equal to our manual reconstruction
+
+
+ss[year %in% 2001:2008][,.(val = mean(pv,na.rm = T)),by = station][order(station)]
+ss[year %in% 2020:2022][,.(val = mean(pv,na.rm = T)),by = station][order(station)]
+
+
+
+# do geom line, overlay bb in different col. 
+ss[,.(val = mean(pv,na.rm = T)), by = .(year,station)] %>% 
+  ggplot(data = .,aes(year, val,group = station)) +
+  geom_smooth(method = 'lm', 
+              se = F, lwd = 0.5, col = 'grey60') +
+  geom_smooth(method = 'lm',se = F,
+            data = . %>% filter(station == "Yellabinna RR"), 
+            col = 'red',lwd = 2) + 
+  geom_smooth(method = 'lm',se = F,
+            data = . %>% filter(station == "Bon Bon"), 
+            col = 'green',lwd = 2) + 
+  geom_smooth(method = 'lm',se = F,
+            data = . %>% filter(station == "Coondambo"), 
+            col = 'black',lwd = 2) + 
+  geom_smooth(method = 'lm',se = F,
+            data = . %>% filter(station == "Mount Eba"), 
+            col = 'blue',lwd = 2) + 
+  geom_smooth(method = 'lm',se = F,
+            data = . %>% filter(station == "North Well"), 
+            col = 'orange',lwd = 2)
+
+
+ss[,.(val = pv), by = .(year,station)] %>% 
+  ggplot(data = .,aes(year, val,group = station)) +
+  geom_smooth(stat = "smooth",
+              method = "gam",
+              se = F, lwd = 0.5, col = 'grey60') +
+  geom_smooth(data = ss2 %>% 
+                select(year,station,starts_with(c('pv'))) %>% 
+                pivot_longer(-c("year","station")) %>% 
+                filter(station == "Yellabinna RR" & name == "pv_anom_max"),
+              aes(year, value),
+              col = 'red',
+              method = 'lm',
+              se = F) + 
+  geom_smooth(stat = 'smooth',
+              method = 'gam',
+              se = F,
+              data = . %>% filter(station == "Yellabinna RR"),
+              col = 'red',lwd = 2)
+  # geom_smooth(stat = 'smooth',se = F,
+  #             data = . %>% filter(station == "Yellabinna RR"),
+  #             col = 'red',lwd = 2) +
+  # geom_smooth(method = 'lm',se = F,
+  #             data = . %>% filter(station == "Bon Bon"), 
+  #             col = 'green',lwd = 2) + 
+  # geom_smooth(method = 'lm',se = F,
+  #             data = . %>% filter(station == "Coondambo"), 
+  #             col = 'black',lwd = 2) + 
+  # geom_smooth(method = 'lm',se = F,
+  #             data = . %>% filter(station == "Mount Eba"), 
+  #             col = 'blue',lwd = 2) + 
+  # geom_smooth(method = 'lm',se = F,
+  #             data = . %>% filter(station == "North Well"), 
+  #             col = 'orange',lwd = 2)
+
+
+
+```
