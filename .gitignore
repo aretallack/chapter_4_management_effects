@@ -5,6 +5,8 @@
 /.quarto/
 /outputs
 /figures
+/src/arcgis
+/src/qgis
 *.tif
 *.parquet
 *.nc
