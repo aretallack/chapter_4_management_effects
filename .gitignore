@@ -2,5 +2,15 @@
 .Rhistory
 .RData
 .Ruserdata
-
 /.quarto/
+/outputs
+/figures
+*.tif
+*.parquet
+*.nc
+*.xml
+*.ovr
+*.cpg
+*.dbf
+*.tfw
+data/vector/water_courses.gpkg
