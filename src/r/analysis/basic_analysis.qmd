@@ -9,6 +9,7 @@ editor_options:
 #| label: setup
 pacman::p_load(tidyverse, arrow, data.table, lme4, mgcv)
 
+# BB + surrounding. Min / Max values of cover types per pixel per year.
 dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet")
 ```
 
@@ -21,7 +22,7 @@ dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet")
 # Plot distribution of pv min values
 dat[pv_min >= 0]$pv_min %>% hist(1000)
 
-# Get cell values where pv_min is greater than zero
+# Get cell values where pv_min is >= zero
 vec_cell <- dat[pv_min >= 0]$cell %>% unique
 
 # sample 5000 cells with > 0 pv
@@ -180,6 +181,7 @@ tmp_dat[,.(eff = 100 * (mean(pv_min[fstation == " Bon Bon"],na.rm = T) -  mean(p
   geom_line()
 ```
 
+
 ```{r}
 # Get cell values where pv_min is greater than zero
 vec_cell <- dat[pv_min >= 0]$cell %>% unique
@@ -193,12 +195,6 @@ tmp_dat <- dat[cell %in% sample(vec_cell, 5000)] %>%
   # station names as factors
   mutate(fstation = factor(station))
 
-# Relevel stations to make Coondambo first level.
-tmp_dat$fstation <- relevel(tmp_dat$fstation, ref = "Coondambo")
-```
-
-
-```{r}
 # mean of pv min per year for bon bon
 # minus mean of pv min per year for all stations
 # basically, the deviation of bon bon from the surrounding stations.
@@ -206,10 +202,18 @@ dat_1 <- tmp_dat[,.(eff = (mean(pv_min[fstation == "Bon Bon"], na.rm = T) - mean
 
 pv_min <- ggplot(dat_1, aes(year, eff)) +
   geom_line() +
-  geom_smooth(data = dat_1[(year <= 2008) == T], method = "lm", se = F) +
-  geom_smooth(data = dat_1[(year > 2008) == T], method = "lm", se = F) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
+  # geom_smooth(data = dat_1[(year <= 2008) == T], method = "lm", se = F) +
+  # geom_smooth(data = dat_1[(year > 2008) == T], method = "lm", se = F) +
+  geom_segment(aes(x = min(dat_1$year), xend = 2008, y = mean(dat_1[(year <= 2008) == T]$eff), yend = mean(dat_1[(year <= 2008) == T]$eff)), 
+               colour = "blue",
+               linewidth = 1.5) +
+  geom_segment(aes(x = 2008, xend = max(dat_1$year), y = mean(dat_1[(year > 2008) == T]$eff), yend = mean(dat_1[(year > 2008) == T]$eff)), 
+               colour = "blue",
+               linewidth = 1.5) +
+  geom_vline(xintercept = 2008, colour = "red", linewidth = 1.5) +
   labs(title = "PV minimum")
+
+pv_min
 ```
 
 # Max PV
