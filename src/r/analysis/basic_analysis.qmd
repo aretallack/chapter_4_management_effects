@@ -10,12 +10,13 @@ editor_options:
 pacman::p_load(tidyverse, arrow, data.table, lme4, mgcv)
 
 # BB + surrounding. Min / Max values of cover types per pixel per year.
-dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet")
+dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
+  mutate(cyear = year - 2008, .after = 2)
 ```
 
 # PV
 
-## Minimum
+
 
 ```{r}
 # Data pre-analysis
@@ -181,24 +182,13 @@ tmp_dat[,.(eff = 100 * (mean(pv_min[fstation == " Bon Bon"],na.rm = T) -  mean(p
   geom_line()
 ```
 
+## Minimum
 
 ```{r}
-# Get cell values where pv_min is greater than zero
-vec_cell <- dat[pv_min >= 0]$cell %>% unique
-
-# sample 5000 cells with > 0 pv
-tmp_dat <- dat[cell %in% sample(vec_cell, 5000)] %>%
-  # yes/no destocked
-  mutate(treatment = ifelse(tsd <= 0,0,1)) %>%
-  # year centred on 2008
-  mutate(cyear = year - 2008) %>%
-  # station names as factors
-  mutate(fstation = factor(station))
-
 # mean of pv min per year for bon bon
 # minus mean of pv min per year for all stations
 # basically, the deviation of bon bon from the surrounding stations.
-dat_1 <- tmp_dat[,.(eff = (mean(pv_min[fstation == "Bon Bon"], na.rm = T) - mean(pv_min[fstation != "Bon Bon"], na.rm = T))) , by = year]
+dat_1 <- dat[,.(eff = (mean(pv_min[station == "Bon Bon"], na.rm = T) - mean(pv_min[station != "Bon Bon"], na.rm = T))) , by = year]
 
 pv_min <- ggplot(dat_1, aes(year, eff)) +
   geom_line() +
@@ -212,7 +202,30 @@ pv_min <- ggplot(dat_1, aes(year, eff)) +
                linewidth = 1.5) +
   geom_vline(xintercept = 2008, colour = "red", linewidth = 1.5) +
   labs(title = "PV minimum")
+```
 
+## 5th percentile
+
+```{r}
+# mean of pv min per year for bon bon
+# minus mean of pv min per year for all stations
+# basically, the deviation of bon bon from the surrounding stations.
+dat_1 <- dat[,.(eff = (mean(pv_05[station == "Bon Bon"], na.rm = T) - mean(pv_05[station != "Bon Bon"], na.rm = T))) , by = year]
+
+pv_05 <- ggplot(dat_1, aes(year, eff)) +
+  geom_line() +
+  # geom_smooth(data = dat_1[(year <= 2008) == T], method = "lm", se = F) +
+  # geom_smooth(data = dat_1[(year > 2008) == T], method = "lm", se = F) +
+  geom_segment(aes(x = min(dat_1$year), xend = 2008, y = mean(dat_1[(year <= 2008) == T]$eff), yend = mean(dat_1[(year <= 2008) == T]$eff)), 
+               colour = "blue",
+               linewidth = 1.5) +
+  geom_segment(aes(x = 2008, xend = max(dat_1$year), y = mean(dat_1[(year > 2008) == T]$eff), yend = mean(dat_1[(year > 2008) == T]$eff)), 
+               colour = "blue",
+               linewidth = 1.5) +
+  geom_vline(xintercept = 2008, colour = "red", linewidth = 1.5) +
+  labs(title = "PV (5th Percentile)")
+
+pv_05
 pv_min
 ```
 
