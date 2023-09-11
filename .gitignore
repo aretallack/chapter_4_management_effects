@@ -5,9 +5,6 @@
 /.quarto/
 /outputs
 /figures
-/src/arcgis
-/src/qgis
-/src/r/old
 *.tif
 *.parquet
 *.nc
@@ -16,4 +13,5 @@
 *.cpg
 *.dbf
 *.tfw
+*.pptx
 data/vector/water_courses.gpkg

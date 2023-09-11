@@ -1,0 +1,40 @@
+---
+title: "Define Study Area"
+author: "Angus Retallack"
+date: "2022-09-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, terra, sf)
+```
+
+
+```{r Import vector data}
+### Pastoral stations ###
+stations <- read_sf("E:/Data/Basedata/Mapland/Statewide/ADMIN_PastoralStations_GDA2020.shp") %>% 
+  st_cast("POLYGON")
+stations$geometry <- st_transform(st_geometry(stations), "EPSG:28353")
+
+names(stations) <- tolower(names(stations))
+## Fix spelling of "property"
+names(stations)[3] <- "property"
+
+### IBRA data ###
+IBRA <-  read_sf(ibraFiles[which(str_detect(ibraFiles, "ibra7_subregions"))]) %>% 
+  st_cast("POLYGON")
+IBRA$geometry <- st_transform(st_geometry(IBRA), "EPSG:28353")
+names(IBRA) <- tolower(names(IBRA))
+```
+
+# Study extent
+
+The overall study extent needs to encompass all BHP properties to the north east, as well as Yellabinna RR to the southwest (Yellabinna may be a good comparision with neighbouring properties)
+
+```{r}
+studyExtent <- stations[which(stations$name %in% c("Stuart Creek", "Andamooka", "Purple Downs", "Roxby Downs", "Mulgaria", "Olympic Dam", "Yellabinna RR")), ] %>% 
+  vect() %>% 
+  ext()
+```
+

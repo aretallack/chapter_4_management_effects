@@ -1,0 +1,445 @@
+---
+title: "6.0.1"
+author: "Angus Retallack"
+date: "2023-03-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Import Data
+
+```{r}
+DF <- read_rds("./RasterVariables/RasterDF_filtered.rds")
+DFbb <- read_rds("./RasterVariables/RasterDFbb_filtered.rds")
+```
+
+
+# Select sample cells
+
+```{r}
+# Narrow scale
+
+# Group DF by station and nvis group. These groups used to sample even amount of cells
+# in each station and nvis group combination
+
+groups <- DFbb %>% group_by(station, nvis_group) %>% 
+  summarise()
+
+# Get 10 random cells from each station/nvis group combination
+vec_ids <- which(DFbb$station %in% groups$station[1] & DFbb$nvis_group %in% groups$nvis_group[1]) %>% sample(10)
+
+for (i in 2:nrow(groups)) {
+  vec_ids <- c(vec_ids, which(DFbb$station %in% groups$station[i] & DFbb$nvis_group %in% groups$nvis_group[i]) %>% sample(10))
+}
+
+sample_cells_bb <- DFbb[vec_ids]$cell
+rm(vec_ids)
+
+# Broad scale
+# Get 10 random cell numbers for each station
+vec_ids <- which(DF$station %in% unique(DF$station)[1]) %>% sample(10)
+
+for (i in 2:length(unique(DF$station))) {
+  vec_ids <- c(vec_ids, which(DF$station %in% unique(DF$station)[i]) %>% sample(10))
+}
+
+sample_cells <- DF[vec_ids]$cell
+rm(vec_ids)
+
+# Random 100 cells across study area
+cells <- unique(DF$cell) %>% 
+  sample(100)
+```
+
+# Parameter testing
+
+## Effect of rainfall grouped by NVIS
+
+Does the effect of rainfall change significantly between NVIS zones? If not
+then no benefit in using NVIS as a grouping variable for rainfall
+
+The plot indicates very similar responess of all rolling sum rainfalls across
+all NVIS groups. The response also seems to be resonably linear. especially
+considering that data values at the extreme low and high cumulative rainfalls
+are relatively uncommon.
+
+```{r}
+precip_nvis_pv <- bam(pv ~
+                 te(x, y, fx = T, k = 20) +
+                  s(ddate, station, k = 20, bs = "fs") +
+                  s(month, bs = "cc") +
+                  s(tmean_3, k = 5) +
+                  s(vpd_3, k = 5) +
+                  s(p_img_3, nvis_group, k = 5, bs = 'fs') +
+                  s(p_img_12, nvis_group, k = 5, bs = 'fs') +
+                  s(p_img_36, nvis_group, k = 5, bs = 'fs'),
+               method = "fREML",
+               distinct = T,
+               data = DF[which(cell %in% cells), ])
+```
+
+
+```{r}
+plot(precip_nvis_pv, select = 6)
+plot(precip_nvis_pv, select = 7)
+plot(precip_nvis_pv, select = 8)
+```
+
+### With grouping on NPV
+```{r}
+precip_nvis_npv <- bam(npv ~
+                 te(x, y, fx = T, k = 20) +
+                  s(ddate, station, k = 20, bs = "fs") +
+                  s(month, bs = "cc") +
+                  s(tmean_3, k = 5) +
+                  s(vpd_3, k = 5) +
+                  s(p_img_3, nvis_group, k = 5, bs = 'fs') +
+                  s(p_img_12, nvis_group, k = 5, bs = 'fs') +
+                  s(p_img_36, nvis_group, k = 5, bs = 'fs'),
+               method = "fREML",
+               distinct = T,
+               data = DF[which(cell %in% cells), ])
+```
+
+
+```{r}
+plot(precip_nvis_npv, select = 6)
+plot(precip_nvis_npv, select = 7)
+plot(precip_nvis_npv, select = 8)
+```
+
+
+### With grouping on Bare
+```{r}
+precip_nvis_bare <- bam(bare ~
+                 te(x, y, fx = T, k = 20) +
+                  s(ddate, station, k = 20, bs = "fs") +
+                  s(month, bs = "cc") +
+                  s(tmean_3, k = 5) +
+                  s(vpd_3, k = 5) +
+                  s(p_img_3, nvis_group, k = 5, bs = 'fs') +
+                  s(p_img_12, nvis_group, k = 5, bs = 'fs') +
+                  s(p_img_36, nvis_group, k = 5, bs = 'fs'),
+               method = "fREML",
+               distinct = T,
+               data = DF[which(cell %in% cells), ])
+```
+
+
+```{r}
+plot(precip_nvis_bare, select = 6)
+plot(precip_nvis_bare, select = 7)
+plot(precip_nvis_bare, select = 8)
+```
+
+### Testing without grouping
+
+Modelling the effect of rainfall without NVIS grouping would suggest that the
+response of PV to 3 month cumulative rainfall is roughly linear. However the 
+12 - 36 month rainfall sums may have a non linear effect. 
+
+```{r}
+precip_pv <- bam(pv ~
+                 te(x, y, fx = T, k = 20) +
+                  s(ddate, station, k = 20, bs = "fs") +
+                  s(month, bs = "cc") +
+                  s(tmean_3, k = 5) +
+                  s(vpd_3, k = 5) +
+                  s(p_img_3, k = 5) +
+                  s(p_img_12, k = 5) +
+                  s(p_img_36, k = 5),
+               method = "fREML",
+               distinct = T,
+               data = DF[which(cell %in% cells), ])
+```
+
+
+```{r}
+plot(precip_pv, select = 6)
+plot(precip_pv, select = 7)
+plot(precip_pv, select = 8)
+```
+
+### Without grouping on NPV
+
+The trend is the opposite when using NPV as the response variable. The greater 
+lengths of cumulative rainfall the more linear the response. Short rainfall sums
+i.e. 3 month has an obviously non-linear effect on NPV.
+
+Notably, the overall effect size of rainfall on NPV is much smaller than on PV.
+
+```{r}
+precip_npv <- bam(npv ~
+                 te(x, y, fx = T, k = 20) +
+                  s(ddate, station, k = 20, bs = "fs") +
+                  s(month, bs = "cc") +
+                  s(tmean_3, k = 5) +
+                  s(vpd_3, k = 5) +
+                  s(p_img_3, k = 5) +
+                  s(p_img_12, k = 5) +
+                  s(p_img_36, k = 5),
+               method = "fREML",
+               distinct = T,
+               data = DF[which(cell %in% cells), ])
+```
+
+
+```{r}
+plot(precip_npv, select = 6)
+plot(precip_npv, select = 7)
+plot(precip_npv, select = 8)
+```
+
+### Without grouping on bare
+
+There may be a non-linear effect of all rainfall sum time periods on bare cover.
+effect size increases significantly with increaseing time of rainfall summing
+period.
+
+```{r}
+precip_bare <- bam(bare ~
+                 te(x, y, fx = T, k = 20) +
+                  s(ddate, station, k = 20, bs = "fs") +
+                  s(month, bs = "cc") +
+                  s(tmean_3, k = 5) +
+                  s(vpd_3, k = 5) +
+                  s(p_img_3, k = 5) +
+                  s(p_img_12, k = 5) +
+                  s(p_img_36, k = 5),
+               method = "fREML",
+               distinct = T,
+               data = DF[which(cell %in% cells), ])
+```
+
+
+```{r}
+plot(precip_bare, select = 6)
+plot(precip_bare, select = 7)
+plot(precip_bare, select = 8)
+```
+
+
+## Testing the inclusion of different climate variables
+
+### No climate variables
+
+high seasonal variability in effect of date
+
+```{r}
+test1 <- bam(pv ~ +
+              te(x, y, fx = T, k = 20) +
+              stocked +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              # s(tmean_3, k = 5) +
+              # s(vpd_3, k = 5) +
+              # s(p_img_3, k = 5) +
+              # s(p_img_12, k = 5) +
+              # s(p_img_36, k = 5) +
+              nvis_group,
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test1 %>% getViz() %>% 
+  plot(all.terms = T) %>% 
+  print(pages = 1)
+```
+
+### add 3 month mean temperature
+
+Minimal effect
+
+```{r}
+test2 <- bam(pv ~ +
+              te(x, y, fx = T, k = 20) +
+              stocked +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              # s(vpd_3, k = 5) +
+              # s(p_img_3, k = 5) +
+              # s(p_img_12, k = 5) +
+              # s(p_img_36, k = 5) +
+              nvis_group,
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test2 %>% getViz() %>% 
+  plot(all.terms = T) %>% 
+  print(pages = 1)
+```
+
+### add 3 month mean VPD
+
+Similar, still strong annual cycle
+
+```{r}
+test3 <- bam(pv ~ +
+              te(x, y, fx = T, k = 20) +
+              stocked +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              # s(p_img_3, k = 5) +
+              # s(p_img_12, k = 5) +
+              # s(p_img_36, k = 5) +
+              nvis_group,
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test3 %>% getViz() %>% 
+  plot(all.terms = T) %>% 
+  print(pages = 1)
+```
+
+### add 12 month rainfall sum
+
+two stations become more separated around 2010
+
+```{r}
+test4 <- bam(pv ~ +
+              te(x, y, fx = T, k = 20) +
+              stocked +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              # s(p_img_3, k = 5) +
+              p_img_12 * nvis_group,
+              # s(p_img_36, k = 5) +
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test4 %>% getViz() %>% 
+  plot(allTerms = T) %>% 
+  print(pages = 1)
+```
+
+### add 3 month rainfall sum
+
+Shorter-term cycles smoothed in date effect
+
+```{r}
+test5 <- bam(pv ~ +
+              te(x, y, fx = T, k = 20) +
+              stocked +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+              # s(p_img_36, k = 5) +
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test5 %>% getViz() %>% 
+  plot(allTerms = T) %>% 
+  print(pages = 1)
+```
+
+### Add 3 year rainfall
+
+Seems to increace cyclicity again. Maybe model doesnt fit well with this included?
+
+```{r}
+test6 <- bam(pv ~ +
+              te(x, y, fx = T, k = 20) +
+              stocked +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group +
+              p_img_36 * nvis_group,
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test6 %>% getViz() %>% 
+  plot(allTerms = T) %>% 
+  print(pages = 1)
+```
+
+### Remove xy
+
+xy could be sufficiently explained by NVIS zones
+
+Greatly increases separation between two stations with stocking data
+
+```{r}
+test7 <- bam(pv ~ +
+              # te(x, y, fx = T, k = 20) +
+              stocked +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group +
+              p_img_36 * nvis_group,
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test7 %>% getViz() %>% 
+  plot(allTerms = T) %>% 
+  print(pages = 1)
+```
+
+### try with tsd rather than binary stocked
+
+```{r}
+test8 <- bam(pv ~ +
+              # te(x, y, fx = T, k = 20) +
+              # stocked +
+              s(tsd, k = 5) +
+              s(ddate, station, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group +
+              p_img_36 * nvis_group,
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ])
+
+test8 %>% getViz() %>% 
+  plot(allTerms = T) %>% 
+  print(pages = 1)
+```
+
+### try without tmean
+
+```{r}
+test9 <- bam(pv ~ +
+              # te(x, y, fx = T, k = 20) +
+              # stocked +
+              s(ddate, bonbon, k = 20, bs = "fs") +
+              s(month, bs = "cc") +
+              s(tmean_3, k = 5) +
+              s(vpd_3, k = 5) +
+              p_img_3 * nvis_group +
+              p_img_12 * nvis_group,
+              # p_img_36 * nvis_group,
+            method = "fREML",
+            distinct = T,
+            data = DFbb[which(cell %in% sample_cells_bb), ] %>% 
+              mutate(bonbon = as.factor(ifelse(station == "Bon Bon", 1, 0))))
+
+test9 %>% getViz() %>% 
+  plot(allTerms = T) %>% 
+  print(pages = 1)
+```
+

@@ -130,8 +130,7 @@ d2[,.(val_min = mean(bare_min,na.rm=T),
       val_max = mean(bare_max,na.rm=T)), by=year] %>% 
   pivot_longer(-year) %>% 
   ggplot(aes(year,value,color=name))+
-  geom_line()+geom_point()
-
+  geom_line() +geom_point()
 
 d2[year==2023]$bare_min %>% summary()
 d2[year==2023]$bare_max %>% summary()
@@ -143,7 +142,6 @@ max(d1[year==2023]$bare,na.rm=T)
 d1[year==2023]$bare %>% summary
 d2[year==2023]$bare_min %>% summary()
 d2[year==2023]$bare_max %>% summary()
-
 
 ```
 
