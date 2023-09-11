@@ -19,3 +19,5 @@ data/vector/water_courses.gpkg
 /src/qgis
 /docs/PhD Research Satellite Analysis - advert ML.docx
 /docs/.tmp.driveupload
+/docs/*.tmp
+/docs/~$*
