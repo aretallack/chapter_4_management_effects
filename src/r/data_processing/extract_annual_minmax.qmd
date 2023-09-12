@@ -19,8 +19,6 @@ d1 <- arrow::read_parquet("./outputs/tables/bonbon.parquet")
 For each cell and year, get the minimum, maximum, 5th and 95th percentile of each cover type
 
 ```{r}
-
-
 # Use dtplyr to work out the tricky data.table query
 # library(dtplyr)
 # d1 %>%
@@ -31,9 +29,9 @@ For each cell and year, get the minimum, maximum, 5th and 95th percentile of eac
 #             ibra_sr = as.factor(unique(ibra_subregion))) %>%
 #   show_query()
 
-d2 <- Reduce(merge, list(d1[is.na(pv) == F][, .(pv_05 = quantile(pv, c(0.05)), 
-                                                station = as.factor(unique(station)),
-                                                ibra_sr = as.factor(unique(ibra_subregion))), 
+d2 <- Reduce(merge, list(d1[is.na(pv) == F][, .(station = as.factor(unique(station)),
+                                                ibra_sr = as.factor(unique(ibra_subregion)),
+                                                pv_05 = quantile(pv, c(0.05))), 
                                             keyby = .(cell, year)],
                          d1[is.na(pv) == F][, .(pv_min = min(pv)), 
                                             keyby = .(cell, year)],
@@ -60,49 +58,6 @@ d2 <- Reduce(merge, list(d1[is.na(pv) == F][, .(pv_05 = quantile(pv, c(0.05)),
                          d1[is.na(bare) == F][, .(bare_max = max(bare)), 
                                               keyby = .(cell, year)]
                          ))
-```
-
-
-```{r}
-# d1 %>%
-#   lazy_dt() %>%
-#   group_by(x,y,year) %>%
-#   filter(pv == min(pv)) %>%
-#   show_query()
-
-# d2 <- rbindlist(list(
-#   d1[is.na(pv) == F][d1[, .I[pv == quantile(pv, c(0.05))], by = .(x, y, year)]$V1] %>% 
-#   rename(pv_05 = pv), 
-#   d1[is.na(pv) == F][d1[, .I[pv == quantile(pv, c(0.95))], by = .(x, y, year)]$V1] %>% 
-#   rename(pv_95 = pv),  
-#   d1d1[is.na(pv) == F][d1[, .I[pv == quantile(pv, c(0.95))], by = .(x, y, year)]$V1] %>% 
-#   rename(pv_95 = pv),  
-#   d1[is.na(pv) == F][d1[, .I[pv == min(pv)], by = .(x, y, year)]$V1] %>% 
-#   rename(pv_min = pv), 
-#     d1[is.na(pv) == F][d1[, .I[pv == max(pv)], by = .(x, y, year)]$V1] %>% 
-#   rename(pv_max = pv),
-#   
-#   d1[is.na(npv) == F][d1[, .I[npv == quantile(npv, c(0.05))], by = .(x, y, year)]$V1] %>% 
-#     rename(npv_05 = npv), 
-#   d1[is.na(npv) == F][d1[, .I[npv == quantile(npv, c(0.95))], by = .(x, y, year)]$V1] %>% 
-#     rename(npv_95 = npv),
-#   d1[is.na(npv) == F][d1[, .I[npv == min(npv)], by = .(x, y, year)]$V1] %>% 
-#     rename(npv_min = npv), 
-#   d1[is.na(npv) == F][d1[, .I[npv == max(npv)], by = .(x, y, year)]$V1] %>% 
-#     rename(npv_m pv), 
-#    pv), 
-#   ax = npv),
-#   
-#   d1[is.na(bare) == F][d1[, .I[bare == quantile(bare, c(0.05))], by = .(x, y, year)]$V1] %>% 
-#     rename(bare_05 = bare), 
-#   d1[is.na(bare) == F][d1[, .I[bare == quantile(bare, c(0.95))], by = .(x, y, year)]$V1] %>% 
-#     rename(bare_95 = bare),
-#   d1[is.na(bare) == F][d1[, .I[bare == min(bare)], by = .(x, y, year)]$V1] %>% 
-#     rename(bare_min = bare), 
-#   d1[is.na(bare) == F][d1[, .I[bare == max(bare)], by = .(x, y, year)]$V1] %>% 
-#     rename(bare_max = bare)
-#   ), fill = T)
-
 ```
 
 ```{r}
