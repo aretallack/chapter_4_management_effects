@@ -7,36 +7,53 @@ editor_options:
 
 ```{r}
 #| label: setup
-pacman::p_load(tidyverse, arrow, data.table, lme4, mgcv)
+pacman::p_load(tidyverse, arrow, data.table, ggpubr)
 
 # BB + surrounding. Min / Max values of cover types per pixel per year.
 dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
   mutate(cyear = year - 2008, .after = 2)
+
+#########################
+### Plotting Function ###
+#########################
+
+plot_effects <- function(data_ibra, data_all) {
+  means <- data_ibra %>%
+    group_by(ibra_sr) %>%
+    summarise(mean_ref = mean(eff[which(year <= 2008)]),
+              mean_eff = mean(eff[which(year > 2008)]))
+  
+  
+  plot <- ggplot(data_ibra, aes(x = year, y = eff, colour = ibra_sr)) +
+    geom_line(linewidth = 0.7) +
+    geom_line(data = data_all, aes(colour = "All Regions"), linewidth = 1.5) +
+    geom_segment(data = means, aes(x = min(data_ibra$year), xend = 2008, y = mean_ref, yend = mean_ref),
+                 linewidth = 1.5) +
+    geom_segment(data = means, aes(x = 2008, xend = max(data_ibra$year), y = mean_eff, yend = mean_eff),
+                 linewidth = 1.5) +
+    geom_vline(xintercept = 2008, colour = "red", linewidth = 1.5) +
+    scale_colour_manual(values = c("#000000", RColorBrewer::brewer.pal(8, "Set2")[c(2,3,5)]),
+                        labels = c('All Regions', 'Breakaways', 'Kingoonya', 'Roxby')) +
+    labs(title = "PV (5th Percentile)",
+         x = "Year",
+         y = "Effect (% Cover Anomaly)",
+         colour = "IBRA Sub-Region") +
+    theme_classic() +
+    theme(
+      legend.title = element_blank(),
+      legend.position = c(0.11, 0.20),
+      legend.background = element_rect(fill = "transparent", colour = "transparent"),
+      axis.title = element_text(size = 10, face = "bold"),
+      axis.title.x = element_text(vjust = unit(-0.1, "cm")),
+      axis.title.y = element_text(margin = unit(c(0, 0.2, 0, 0), "cm")),
+      axis.text = element_text(size = 10)
+    )
+  
+  return(plot)
+}
 ```
 
 # PV
-
-## Minimum
-
-```{r}
-# mean of pv min per year for bon bon
-# minus mean of pv min per year for all stations
-# basically, the deviation of bon bon from the surrounding stations.
-dat_pvmin <- dat[,.(eff = (mean(pv_min[station == "Bon Bon"], na.rm = T) - mean(pv_min[station != "Bon Bon"], na.rm = T))) , by = year]
-
-pv_min <- ggplot(dat_pvmin, aes(year, eff)) +
-  geom_line() +
-  # geom_smooth(data = dat_1[(year <= 2008) == T], method = "lm", se = F) +
-  # geom_smooth(data = dat_1[(year > 2008) == T], method = "lm", se = F) +
-  geom_segment(aes(x = min(dat_pvmin$year), xend = 2008, y = mean(dat_pvmin[(year <= 2008) == T]$eff), yend = mean(dat_pvmin[(year <= 2008) == T]$eff)), 
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_segment(aes(x = 2008, xend = max(dat_pvmin$year), y = mean(dat_pvmin[(year > 2008) == T]$eff), yend = mean(dat_pvmin[(year > 2008) == T]$eff)), 
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", linewidth = 1.5) +
-  labs(title = "PV minimum")
-```
 
 ## PV 5th percentile
 
@@ -60,23 +77,6 @@ pv_05 <- ggplot(dat_pv5, aes(year, eff)) +
   labs(title = "PV (5th Percentile)")
 ```
 
-## Max PV
-
-```{r}
-dat_pvmax <- dat[,.(eff = (mean(pv_max[station == "Bon Bon"], na.rm = T) - mean(pv_max[station != "Bon Bon"], na.rm = T))) , by = year]
-  
-pv_max <- ggplot(dat_pvmax, aes(year, eff)) +
-  geom_line() +
-  geom_segment(aes(x = min(dat_pvmax$year), xend = 2008, y = mean(dat_pvmax[(year <= 2008) == T]$eff), yend = mean(dat_pvmax[(year <= 2008) == T]$eff)), 
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_segment(aes(x = 2008, xend = max(dat_pvmax$year), y = mean(dat_pvmax[(year > 2008) == T]$eff), yend = mean(dat_pvmax[(year > 2008) == T]$eff)), 
-               colour = "blue",
-               linewidth = 1.5) +  
-  geom_vline(xintercept = 2008, colour = "red", linewidth = 1.5) +
-  labs(title = "PV maximum")
-
-```
 
 ## PV 95th percentile
 
@@ -97,22 +97,6 @@ pv_95 <- ggplot(dat_pv95, aes(year, eff)) +
 ```
 
 # NPV
-## Minimim
-
-```{r}
-dat_npvmin <- dat[,.(eff = (mean(npv_min[station == "Bon Bon"], na.rm = T) - mean(npv_min[station != "Bon Bon"], na.rm = T))) , by = year]
-
-npv_min <- ggplot(dat_npvmin, aes(year, eff)) +
-  geom_line() +
-  geom_segment(aes(x = min(dat_npvmin$year), xend = 2008, y = mean(dat_npvmin[(year <= 2008) == T]$eff), yend = mean(dat_npvmin[(year <= 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_segment(aes(x = 2008, xend = max(dat_npvmin$year), y = mean(dat_npvmin[(year > 2008) == T]$eff), yend = mean(dat_npvmin[(year > 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "NPV minimum")
-```
 
 ## 5th percentile
 
@@ -129,23 +113,6 @@ npv_05 <- ggplot(dat_npv5, aes(year, eff)) +
                linewidth = 1.5) +
   geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
   labs(title = "NPV (5th Percentile)")
-```
-
-## Maximum
-
-```{r}
-dat_npvmax <- dat[,.(eff = (mean(npv_max[station == "Bon Bon"], na.rm = T) - mean(npv_max[station != "Bon Bon"], na.rm = T))) , by = year]
-
-npv_max <- ggplot(dat_npvmax, aes(year, eff)) +
-  geom_line() +
-  geom_segment(aes(x = min(dat_npvmax$year), xend = 2008, y = mean(dat_npvmax[(year <= 2008) == T]$eff), yend = mean(dat_npvmax[(year <= 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_segment(aes(x = 2008, xend = max(dat_npvmax$year), y = mean(dat_npvmax[(year > 2008) == T]$eff), yend = mean(dat_npvmax[(year > 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "NPV maximum")
 ```
 
 ## 95th percentile
@@ -167,23 +134,6 @@ npv_95 <- ggplot(dat_npv95, aes(year, eff)) +
 
 # Bare
 
-## Minimim
-
-```{r}
-dat_baremin <- dat[,.(eff = (mean(bare_min[station == "Bon Bon"], na.rm = T) - mean(bare_min[station != "Bon Bon"], na.rm = T))) , by = year]
-
-bare_min <- ggplot(dat_baremin, aes(year, eff)) +
-  geom_line() +
-  geom_segment(aes(x = min(dat_baremin$year), xend = 2008, y = mean(dat_baremin[(year <= 2008) == T]$eff), yend = mean(dat_baremin[(year <= 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_segment(aes(x = 2008, xend = max(dat_baremin$year), y = mean(dat_baremin[(year > 2008) == T]$eff), yend = mean(dat_baremin[(year > 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "Bare minimum")
-```
-
 ## 5th percentile
 
 ```{r}
@@ -199,23 +149,6 @@ bare_05 <- ggplot(dat_bare5, aes(year, eff)) +
                linewidth = 1.5) +
   geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
   labs(title = "Bare (5th Percentile)")
-```
-
-## Maximum
-
-```{r}
-dat_baremax <- dat[,.(eff = (mean(bare_max[station == "Bon Bon"], na.rm = T) - mean(bare_max[station != "Bon Bon"], na.rm = T))) , by = year]
-
-bare_max <- ggplot(dat_baremax, aes(year, eff)) +
-  geom_line() +
-  geom_segment(aes(x = min(dat_baremax$year), xend = 2008, y = mean(dat_baremax[(year <= 2008) == T]$eff), yend = mean(dat_baremax[(year <= 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_segment(aes(x = 2008, xend = max(dat_baremax$year), y = mean(dat_baremax[(year > 2008) == T]$eff), yend = mean(dat_baremax[(year > 2008) == T]$eff)),
-               colour = "blue",
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "Bare maximum")
 ```
 
 ## 95th Percentile
@@ -235,14 +168,7 @@ bare_95 <- ggplot(dat_bare95, aes(year, eff)) +
   labs(title = "Bare (95th Percentile)")
 ```
 
-
 ```{r}
-# Min/Max
-ggpubr::ggarrange(pv_min, npv_min, bare_min, 
-                  pv_max, npv_max, bare_max,
-                  ncol = 3,
-                  nrow = 2)
-
 # 5th/95th 
 ggpubr::ggarrange(pv_05, npv_05, bare_05, 
                   pv_95, npv_95, bare_95,
@@ -257,50 +183,19 @@ ggpubr::ggarrange(pv_05, npv_05, bare_05,
 ### 5th
 
 ```{r}
-dat_pv5_ibra <- dat[,.(eff = (mean(pv_05[station == "Bon Bon"], na.rm = T) - mean(pv_05[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
-
-means <- dat_pv5_ibra %>%
-  group_by(ibra_sr) %>%
-  summarise(mean_ref = mean(eff[which(year <= 2008)]),
-            mean_eff = mean(eff[which(year > 2008)]))
+test
 
 
-pv_05_ibra <- ggplot(dat_pv5_ibra, aes(year, eff, colour = ibra_sr)) +
-  geom_line(linewidth = 0.7) +
-  geom_line(data = dat_pv5, aes(colour = NULL), linewidth = 1.5) +
-  geom_segment(data = means, aes(x = min(dat_pv5_ibra$year), xend = 2008, y = mean_ref, yend = mean_ref),
-               linewidth = 1.5) +
-  geom_segment(data = means, aes(x = 2008, xend = max(dat_pv5_ibra$year), y = mean_eff, yend = mean_eff),
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "PV (5th percentile)")
+data_ibra <- dat[,.(eff = (mean(pv_05[station == "Bon Bon"], na.rm = T) - mean(pv_05[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
+data_all <- dat[,.(eff = (mean(pv_05[station == "Bon Bon"], na.rm = T) - mean(pv_05[station != "Bon Bon"], na.rm = T))) , by = c("year")]
 
-ggsave("./figures/pv_05_ibra.png",
-       pv_05_ibra, 
-       width = 10,
-       height = 10 * 0.8)
-```
+pv_05_ibra <- plot_effects(data_ibra, data_all) +
+  labs(title = "PV (5th Percentile)")
 
-### 95th
-
-```{r}
-dat_pv95_ibra <- dat[,.(eff = (mean(pv_95[station == "Bon Bon"], na.rm = T) - mean(pv_95[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
-
-means <- dat_pv95_ibra %>%
-  group_by(ibra_sr) %>%
-  summarise(mean_ref = mean(eff[which(year <= 2008)]),
-            mean_eff = mean(eff[which(year > 2008)]))
-
-
-pv_95_ibra <- ggplot(dat_pv95_ibra, aes(year, eff, colour = ibra_sr)) +
-  geom_line(linewidth = 0.7) +
-  geom_line(data = dat_pv95, aes(colour = NULL), linewidth = 1.5) +
-  geom_segment(data = means, aes(x = min(dat_pv95_ibra$year), xend = 2008, y = mean_ref, yend = mean_ref),
-               linewidth = 1.5) +
-  geom_segment(data = means, aes(x = 2008, xend = max(dat_pv95_ibra$year), y = mean_eff, yend = mean_eff),
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "PV (95th Percentile)")
+# ggsave("./figures/pv_05_ibra.png",
+#        pv_05_ibra, 
+#        width = 10,
+#        height = 10 * 0.8)
 ```
 
 ## NPV
@@ -308,52 +203,17 @@ pv_95_ibra <- ggplot(dat_pv95_ibra, aes(year, eff, colour = ibra_sr)) +
 ### 5th
 
 ```{r}
-dat_npv5_ibra <- dat[,.(eff = (mean(npv_05[station == "Bon Bon"], na.rm = T) - mean(npv_05[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
+data_ibra <- dat[,.(eff = (mean(npv_05[station == "Bon Bon"], na.rm = T) - mean(npv_05[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
+data_all <- dat[,.(eff = (mean(npv_05[station == "Bon Bon"], na.rm = T) - mean(npv_05[station != "Bon Bon"], na.rm = T))) , by = c("year")]
 
-means <- dat_npv5_ibra %>%
-  group_by(ibra_sr) %>%
-  summarise(mean_ref = mean(eff[which(year <= 2008)]),
-            mean_eff = mean(eff[which(year > 2008)]))
+npv_05_ibra <- plot_effects(data_ibra, data_all) +
+  labs(title = "NPV (5th Percentile)")
 
-
-npv_05_ibra <- ggplot(dat_npv5_ibra, aes(year, eff, colour = ibra_sr)) +
-  geom_line(linewidth = 0.7) +
-  geom_line(data = dat_npv5, aes(colour = NULL), linewidth = 1.5) +
-  geom_segment(data = means, aes(x = min(dat_npv5_ibra$year), xend = 2008, y = mean_ref, yend = mean_ref),
-               linewidth = 1.5) +
-  geom_segment(data = means, aes(x = 2008, xend = max(dat_npv5_ibra$year), y = mean_eff, yend = mean_eff),
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "NPV (5th percentile)")
-
-ggsave("./figures/npv_05_ibra.png",
-       npv_05_ibra, 
-       width = 10,
-       height = 10 * 0.8)
+# ggsave("./figures/npv_05_ibra.png",
+#        npv_05_ibra, 
+#        width = 10,
+#        height = 10 * 0.8)
 ```
-
-### 95th
-
-```{r}
-dat_npv95_ibra <- dat[,.(eff = (mean(npv_95[station == "Bon Bon"], na.rm = T) - mean(npv_95[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
-
-means <- dat_npv95_ibra %>%
-  group_by(ibra_sr) %>%
-  summarise(mean_ref = mean(eff[which(year <= 2008)]),
-            mean_eff = mean(eff[which(year > 2008)]))
-
-
-npv_95_ibra <- ggplot(dat_npv95_ibra, aes(year, eff, colour = ibra_sr)) +
-  geom_line(linewidth = 0.7) +
-  geom_line(data = dat_npv95, aes(colour = NULL), linewidth = 1.5) +
-  geom_segment(data = means, aes(x = min(dat_npv95_ibra$year), xend = 2008, y = mean_ref, yend = mean_ref),
-               linewidth = 1.5) +
-  geom_segment(data = means, aes(x = 2008, xend = max(dat_npv95_ibra$year), y = mean_eff, yend = mean_eff),
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "NPV (95th Percentile)")
-```
-
 
 ## Bare
 
@@ -361,6 +221,9 @@ npv_95_ibra <- ggplot(dat_npv95_ibra, aes(year, eff, colour = ibra_sr)) +
 
 ```{r}
 dat_bare5_ibra <- dat[,.(eff = (mean(bare_05[station == "Bon Bon"], na.rm = T) - mean(bare_05[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
+
+plot_effects(data_ibra, data_all)
+
 
 means <- dat_bare5_ibra %>%
   group_by(ibra_sr) %>%
@@ -379,66 +242,17 @@ bare_05_ibra <- ggplot(dat_bare5_ibra, aes(year, eff, colour = ibra_sr)) +
   labs(title = "Bare (5th Percentile)")
 ```
 
-### 95th
 
 ```{r}
-dat_bare95_ibra <- dat[,.(eff = (mean(bare_95[station == "Bon Bon"], na.rm = T) - mean(bare_95[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
-
-means <- dat_bare95_ibra %>%
-  group_by(ibra_sr) %>%
-  summarise(mean_ref = mean(eff[which(year <= 2008)]),
-            mean_eff = mean(eff[which(year > 2008)]))
-
-
-bare_95_ibra <- ggplot(dat_bare95_ibra, aes(year, eff, colour = ibra_sr)) +
-  geom_line(linewidth = 0.7) +
-  geom_line(data = dat_bare95, aes(colour = "All Regions"), linewidth = 1.5) +
-  geom_segment(data = means, aes(x = min(dat_bare95_ibra$year), xend = 2008, y = mean_ref, yend = mean_ref),
-               linewidth = 1.5) +
-  geom_segment(data = means, aes(x = 2008, xend = max(dat_bare95_ibra$year), y = mean_eff, yend = mean_eff),
-               linewidth = 1.5) +
-  geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  # scale_colour_manual(values = c("#000000", RColorBrewer::brewer.pal(8, "Set2")[c(2,3,5)]),
-  #                     labels = c('All Regions', 'Breakaways', 'Kingoonya', 'Roxby')) +
-  labs(title = "Bare (95th Percentile)",
-       colour = "IBRA Sub-Region") +
-  theme_classic() +
-  theme(legend.position = c(0.08, 0.1),
-        legend.background = element_blank())
-
-# ggsave("./figures/bare_95_ibra.png",
-#        bare_95_ibra, 
-#        width = 10,
-#        height = 10 * 0.8)
-```
-
-```{r}
-# 5th/95th by IBRA SR
-ggpubr::ggarrange(pv_05_ibra, npv_05_ibra, bare_05_ibra, 
-                  pv_95_ibra, npv_95_ibra, bare_95_ibra,
-                  ncol = 3,
-                  nrow = 2)
-
-
-ggpubr::ggarrange(pv_05_ibra, npv_05_ibra, bare_95_ibra,
+ggpubr::ggarrange(pv_05_ibra + rremove("xlab") + rremove("x.text"), 
+                  npv_05_ibra + rremove("legend") + rremove("xlab") + rremove("x.text"), 
+                  bare_95_ibra + rremove("legend"),
                   nrow = 3)
 
 
-```
-
-# BFast Test
-
-PV 5th Perentile
-
-```{r eval = F}
-library(bfast, stlplus)
-test_dat <- dat[,.(eff = (mean(pv_05[station == "Bon Bon"], na.rm = T) - mean(pv_05[station != "Bon Bon"], na.rm = T))) , by = c("year")]
-
-
-
-test_ts <- bfastts(test_dat$eff, ymd(test_dat$year, truncated = 2L), type = "irregular") %>% 
-  na.approx()
-
-mod_bfast <- bfast(test_ts, h = 0.15, season = "dummy", decomp = "stlplus")
+ggsave("./figures/anomalies_all.png",
+       width = 16,
+       height = 24,
+       units = "cm")
 ```
 

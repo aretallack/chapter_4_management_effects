@@ -14,13 +14,14 @@ dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>%
   mutate(cyear = year - 2008, .after = 2)
 dat_2 <- read_parquet("./outputs/tables/bonbon.parquet")
 
+study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg")
+
 rain <- rast("./outputs/raster/chirps_precipitation/CHIRPS2.0_global_monthly_EW_data_20000101_20230301.nc") %>% 
   .[[which(time(.) >= as_date("2001-01-01"))]] %>% 
   .[[which(time(.) < as_date("2023-01-01"))]] %>% 
   mask(study_area) %>% 
   crop(study_area)
 
-study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg")
 
 ```
 
@@ -76,7 +77,7 @@ in_out_rain %>%
 
 ggsave("./Figures/BonBon_Surrounding_Rainfall.png",
        width = 16,
-       height = 8,
+       height = 10,
        units = "cm")
 ```
 
@@ -141,7 +142,7 @@ monthly_fc$date <- as_date(monthly_fc$date)
 
 coeff <- 0.6
 
-ain, aes(x = date)) +
+ggplot(monthly_rain, aes(x = date)) +
   # Use alpha aes and manually scale to 1 to get rainfall legend seperate from
   # cover type.
   geom_line(aes(y = rainfall, alpha = rain), colour = "lightblue") +
@@ -190,7 +191,7 @@ ain, aes(x = date)) +
 
 ggsave("./figures/rainfall_FC.png",
        width = 16,
-       height = 8,
+       height = 10,
        units = "cm")
 
 ##################
@@ -242,7 +243,7 @@ ggplot(monthly_rain, aes(x = date)) +
 
 ggsave("./figures/rainfall_FC_2009.png",
        width = 16,
-       height = 8,
+       height = 10,
        units = "cm")
 
 ```
