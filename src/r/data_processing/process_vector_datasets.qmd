@@ -23,7 +23,7 @@ stations <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
 write_sf(stations, "./outputs/vector/pastoral_stations.gpkg")
 ```
 
-# Stations
+# Paddocks
 
 ```{r}
 paddocks <- read_sf("./data/vector/pastoral_paddocks.gpkg") %>% 
@@ -62,7 +62,8 @@ st_write(pastoral_landsystems, "./outputs/vector/pastoral_landsystems.gpkg", del
 500 m buffer around station fences
 
 ```{r}
-fences <- read_sf("./data/vector/pastoral_paddocks.gpkg") %>%
+fences <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
+  st_transform("EPSG:28353") %>% 
   st_cast("POLYGON") %>%
   st_cast("LINESTRING") %>%
   st_buffer(500) %>%
@@ -73,7 +74,7 @@ fences <- read_sf("./data/vector/pastoral_paddocks.gpkg") %>%
   vect() %>% 
   crop(study_extent)
 
-writeVector(fences, "./outputs/vector/fences.gpkg")
+writeVector(fences, "./outputs/vector/fences.gpkg", overwrite = T)
 ```
 
 # Dog Fence
@@ -86,12 +87,12 @@ dog_fence <- read_sf("./data/vector/dog_fence.gpkg") %>%
              inside = as.numeric(0)) %>% 
   arrange(area)
 
-dog_fence <- rbind(dog_fence$geom[1:5] %>% 
+dog_fence <- rbind(dog_fence$geom[1:5] %>%
                      st_union() %>%
                      as_tibble(),
-              dog_fence$geom[6] %>%
-  add_column(inside = c(0, 1)) %>% 
-  st_as_sf()
+                   dog_fence$geom[6] %>%
+                     add_column(inside = c(0, 1)) %>%
+                     st_as_sf())
 
 write_sf(dog_fence, "./outputs/vector/dog_fence.gpkg")
 ```

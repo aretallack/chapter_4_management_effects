@@ -1,6 +1,8 @@
 ---
 title: "Extract annual minimum and maximum values"
 format: html
+editor_options: 
+  chunk_output_type: console
 ---
 
 For each pixel, extract the minimum of each of the cover values within a 

@@ -274,6 +274,11 @@ pv_05_ibra <- ggplot(dat_pv5_ibra, aes(year, eff, colour = ibra_sr)) +
                linewidth = 1.5) +
   geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
   labs(title = "PV (5th percentile)")
+
+ggsave("./figures/pv_05_ibra.png",
+       pv_05_ibra, 
+       width = 10,
+       height = 10 * 0.8)
 ```
 
 ### 95th
@@ -320,6 +325,11 @@ npv_05_ibra <- ggplot(dat_npv5_ibra, aes(year, eff, colour = ibra_sr)) +
                linewidth = 1.5) +
   geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
   labs(title = "NPV (5th percentile)")
+
+ggsave("./figures/npv_05_ibra.png",
+       npv_05_ibra, 
+       width = 10,
+       height = 10 * 0.8)
 ```
 
 ### 95th
@@ -382,13 +392,24 @@ means <- dat_bare95_ibra %>%
 
 bare_95_ibra <- ggplot(dat_bare95_ibra, aes(year, eff, colour = ibra_sr)) +
   geom_line(linewidth = 0.7) +
-  geom_line(data = dat_bare95, aes(colour = NULL), linewidth = 1.5) +
+  geom_line(data = dat_bare95, aes(colour = "All Regions"), linewidth = 1.5) +
   geom_segment(data = means, aes(x = min(dat_bare95_ibra$year), xend = 2008, y = mean_ref, yend = mean_ref),
                linewidth = 1.5) +
   geom_segment(data = means, aes(x = 2008, xend = max(dat_bare95_ibra$year), y = mean_eff, yend = mean_eff),
                linewidth = 1.5) +
   geom_vline(xintercept = 2008, colour = "red", size = 1.5) +
-  labs(title = "Bare (95th Percentile)")
+  # scale_colour_manual(values = c("#000000", RColorBrewer::brewer.pal(8, "Set2")[c(2,3,5)]),
+  #                     labels = c('All Regions', 'Breakaways', 'Kingoonya', 'Roxby')) +
+  labs(title = "Bare (95th Percentile)",
+       colour = "IBRA Sub-Region") +
+  theme_classic() +
+  theme(legend.position = c(0.08, 0.1),
+        legend.background = element_blank())
+
+# ggsave("./figures/bare_95_ibra.png",
+#        bare_95_ibra, 
+#        width = 10,
+#        height = 10 * 0.8)
 ```
 
 ```{r}
@@ -397,13 +418,19 @@ ggpubr::ggarrange(pv_05_ibra, npv_05_ibra, bare_05_ibra,
                   pv_95_ibra, npv_95_ibra, bare_95_ibra,
                   ncol = 3,
                   nrow = 2)
+
+
+ggpubr::ggarrange(pv_05_ibra, npv_05_ibra, bare_95_ibra,
+                  nrow = 3)
+
+
 ```
 
 # BFast Test
 
 PV 5th Perentile
 
-```{r}
+```{r eval = F}
 library(bfast, stlplus)
 test_dat <- dat[,.(eff = (mean(pv_05[station == "Bon Bon"], na.rm = T) - mean(pv_05[station != "Bon Bon"], na.rm = T))) , by = c("year")]
 

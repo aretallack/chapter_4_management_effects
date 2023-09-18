@@ -1,6 +1,8 @@
 ---
 title: "Filter_Raster_Dataframe"
 format: html
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r}
@@ -80,7 +82,9 @@ bonbon %>%
 
 bonbon <- bonbon %>% 
   filter(nvis_group %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Samphire Shrublands and Forblands")) %>% 
-  filter(!station %in% c("Lake Gairdner NP"))
+  filter(!station %in% c("Lake Gairdner NP")) %>% 
+  filter(!ibra_subregion %in% c("Gawler Lakes"))
+
 ```
 ## Write Bon Bon parquet
 

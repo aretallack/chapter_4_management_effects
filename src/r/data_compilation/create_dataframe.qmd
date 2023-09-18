@@ -548,6 +548,9 @@ gc(full = T, reset = T)
 ### Station Fence Buffer ###
 ############################
 
+fences <- read_sf("E:/data/Basedata/Pastoral/Statewide/ADMIN_PastoralStations_GDA2020.shp")
+sf::write_sf(fences, "./data/vector/pastoral_stations.gpkg")
+
 fences <- read_sf("./outputs/vector/fences.gpkg") %>%
   vect() %>%
   rasterize(blankRast, field = "fence") %>% 
@@ -672,7 +675,7 @@ setDT(water)
 
 setkeyv(water, c("x","y"))
 
-df <- merge(df, S
+df <- merge(df,
             water %>% select(-cell), 
             by = c("x", "y"),
             all.x = T)
