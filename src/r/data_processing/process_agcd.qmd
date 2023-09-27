@@ -15,7 +15,6 @@ studyExtent <- read_sf("./outputs/vector/study_area.gpkg") %>% st_geometry()
 ```{r}
 filePath <- "E:/data/climate_data/rainfall/agcd/" %>% 
   list.files("*.nc$", full.names = T)
-outputPath <- "./outputs/raster/agcd_precipitation"
 
 rasters <- rast(filePath)
 # Select images within time range
@@ -53,5 +52,9 @@ start_date <- time(rasters)[1] %>%
 end_date <- time(rasters)[length(time(rasters))] %>% 
   str_replace_all("-", "")
 
-writeCDF(rasters, file.path(outputPath, paste0("agcd_v2_preicp_monthly_", start_date, "_", end_date, ".nc")), varname = "agcd_precipitation_monthly", compression = 6, overwrite = T)
+outPath <- filePath %>% 
+  basename %>%
+  file.path("./outputs/raster/agcd_precipitation", .)
+
+writeCDF(rasters, outPath, varname = "agcd_precipitation_monthly", compression = 6, overwrite = T)
 ```

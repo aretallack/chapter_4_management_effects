@@ -102,7 +102,8 @@ write_sf(dog_fence, "./outputs/vector/dog_fence.gpkg")
 
 ```{r}
 ## Areas that are within a 10 km buffer of Bon Bon for finer-scale modelling
-bonbon <- read_sf("./data/vector/pastoral_stations.gpkg") %>% 
+bonbon <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
+  st_transform("EPSG:28353") %>% 
   as_tibble() %>% 
   .[which(.$NAME == "Bon Bon"), ] %>% 
   st_as_sf() %>% 

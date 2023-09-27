@@ -13,43 +13,14 @@ df <- arrow::open_dataset("./outputs/tables/full_dataframe.parquet") %>%
   filter(is.na(water)) %>% 
   filter(is.na(fence_buffer)) %>%
   filter(!is.na(station)) %>% 
-  mutate(ddate = decimal_date(as_date(date)),
+  filter(land_system_id != 770) %>% 
+  mutate(year = year(as_date(date)),
+         ddate = decimal_date(as_date(date)),
          month = month(as_date(date)), .after = 5)
+
 
   # filter(!station %in% c("Lake Torrens NP", "Other", "Kati Thanda-Lake Eyre NP", "Lake Gairdner NP", "Salt Lake", "Lake Everard", "Coward Springs Railway Siding", "Wadma Kadarbu Mound Springs CP", "Olympic Dam")) %>% 
   # filter(!nvis_group %in% c("Inland aquatic - freshwater, salt lakes, lagoons", "Naturally bare - sand, rock, claypan, mudflat", "Cleared, non-native vegetation, buildings")) 
-```
-
-# Assess NVIS group frequency
-
-Assess the frequency of NVIS groups within the study area. Uncommon Vegetation types shall be filtered from the dataset as they do not represent the area of interest.
-
-```{r eval = FALSE}
-# df_2 <- as.data.frame(df)
-# data.table::setDT(df_2)
-# 
-# df_2[sample(.N, 50000)] %>% 
-#   group_by(nvis_group) %>% 
-#   summarise(n = n()) %>% 
-#   arrange(n) %>% 
-#   ggplot(aes(x = reorder(nvis_group, n), y = n/50000)) +
-#   geom_point()
-# 
-# # 5 Most representative NVIS groups, based on line graph above.
-# 
-# df_2[sample(.N, 50000)] %>% 
-#   group_by(nvis_group) %>% 
-#   summarise(n = n()) %>% 
-#   arrange(desc(n)) %>% 
-#   .[1:5, "nvis_group"]
-
-```
-
-# Remove uncommon NVIS groups
-
-```{r eval = FALSE}
-# df <- df %>% 
-#   filter(nvis_group %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Samphire Shrublands and Forblands", "Mallee Woodlands and Shrublands", "Acacia Shrublands", "Hummock Grasslands"))
 ```
 
 # Filter DF for Bon Bon component of study
@@ -59,10 +30,12 @@ Remove stocking columns Remove agcd data (for now) Remove water and fenceline bu
 ```{r}
 bonbon <- df %>%
   filter(study_zone %in% c(1, 2)) %>%
-  select(-c("water", "fence_buffer", "study_zone"))
+  select(-c("water", "fence_buffer", "study_zone", "land_system_id"))
 
 bonbon <- bonbon %>% 
   as.data.table()
+
+bonbon$study_zone %>% unique()
 
 bonbon %>% 
   group_by(nvis_group) %>% 
@@ -81,7 +54,7 @@ bonbon %>%
   {sum(.[1:2]) / sum(.)}
 
 bonbon <- bonbon %>% 
-  filter(nvis_group %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Samphire Shrublands and Forblands")) %>% 
+  filter(nvis_group %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Samphire Shrublands and Forblands", "Acacia Shrublands", "Acacia Forests and Woodlands")) %>% 
   filter(!station %in% c("Lake Gairdner NP")) %>% 
   filter(!ibra_subregion %in% c("Gawler Lakes"))
 
@@ -92,47 +65,3 @@ bonbon <- bonbon %>%
 arrow::write_parquet(bonbon, "./outputs/tables/bonbon.parquet")
 ```
 
-# Filter DF for Olympic Dam Study
-
-Remove stocking columns Remove agcd data (for now) Remove water and fenceline buffer and study zone as these have already been used to filter Remove station area (not necessary)
-
-```{r}
-olympic_dam <- df %>% 
-  filter(station %in% c("Mulgaria", "Stuart Creek", "Roxby Downs", "Purple Downs", "Andamooka")) %>% 
-  select(-c("tsd", "water", "fence_buffer", "study_zone"))
-```
-
-## Assess NVIS frequency in Olympic Dam study area
-
-```{r eval = FALSE}
-# tmp_2 <- as.data.frame(olympic_dam)
-# data.table::setDT(tmp_2)
-# 
-# tmp_2[sample(.N, 50000)] %>% 
-#   group_by(nvis_group) %>% 
-#   summarise(n = n()) %>% 
-#   arrange(n) %>% 
-#   ggplot(aes(x = reorder(nvis_group, n), y = n/50000)) +
-#   geom_point() + 
-#   theme(
-#     axis.text.x = element_text(angle = 45, hjust = 1)
-#   )
-# 
-# tmp_2[sample(.N, 50000)] %>% 
-#   group_by(nvis_group) %>% 
-#   summarise(n = n()) %>% 
-#   mutate(p = n / 50000) %>% 
-#   arrange(desc(n))
-
-```
-
-```{r}
-olympic_dam <- olympic_dam %>% 
-  filter(nvis_group %in% c("Tussock Grasslands", "Acacia Shrublands", "Hummock Grasslands", "Chenopod Shrublands, Samphire Shrublands and Forblands"))
-```
-
-## Write Olympic Dam parquet
-
-```{r}
-arrow::write_parquet(olympic_dam, "./outputs/tables/olympic_dam.parquet")
-```

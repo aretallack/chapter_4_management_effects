@@ -11,7 +11,7 @@ pacman::p_load(terra, tidyverse, stringr)
 # AGCD
 
 ```{r}
-agcd_path <- "./outputs/raster/agcd_precipitation/"
+agcd_path <- "./outputs/raster/agcd_precipitation"
 agcd <- list.files(agcd_path, "*.nc$", full.names = T) %>% 
   rast()
 ```
@@ -22,51 +22,12 @@ sum_12mo_agcd <- roll(agcd, 12, type = "to", fun = "sum")
 sum_24mo_agcd <- roll(agcd, 24, type = "to", fun = "sum")
 sum_36mo_agcd <- roll(agcd, 36, type = "to", fun = "sum")
 
-writeCDF(sum_3mo_agcd, file.path(agcd_path, "rolling", paste0("agcd_v2_preicp_monthly_20010101_20200501_3mo_sum.nc")), varname = "imerg_precipitation_3mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_12mo_agcd, file.path(agcd_path, "rolling", paste0("agcd_v2_preicp_monthly_20010101_20200501_12mo_sum.nc")), varname = "imerg_precipitation_12mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_24mo_agcd, file.path(agcd_path, "rolling", paste0("agcd_v2_preicp_monthly_20010101_20200501_24mo_sum.nc")), varname = "imerg_precipitation_24mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_36mo_agcd, file.path(agcd_path, "rolling", paste0("agcd_v2_preicp_monthly_20010101_20200501_36mo_sum.nc")), varname = "imerg_precipitation_36mo_sum", compression = 6, overwrite = T)
+outName <- list.files(agcd_path, "*.nc$", full.names = T) %>% 
+  basename()
 
-```
-
-# CHIRPS
-
-```{r}
-chirps_path <- "./outputs/raster/chirps_precipitation/"
-chirps <- list.files(chirps_path, "*.nc$", full.names = T) %>% 
-  rast()
-```
-
-```{r}
-sum_3mo_chirps <- roll(chirps, 3, type = "to", fun = "sum")
-sum_12mo_chirps <- roll(chirps, 12, type = "to", fun = "sum")
-sum_24mo_chirps <- roll(chirps, 24, type = "to", fun = "sum")
-sum_36mo_chirps <- roll(chirps, 36, type = "to", fun = "sum")
-
-writeCDF(sum_3mo_chirps, file.path(chirps_path, "rolling", paste0("CHIRPS2.0_global_monthly_EW_data_20000101_20230301_3mo_sum.nc")), varname = "chirps_precipitation_3mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_12mo_chirps, file.path(chirps_path, "rolling", paste0("CHIRPS2.0_global_monthly_EW_data_20000101_20230301_12mo_sum.nc")), varname = "chirps_precipitation_12mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_24mo_chirps, file.path(chirps_path, "rolling", paste0("CHIRPS2.0_global_monthly_EW_data_20000101_20230301_24mo_sum.nc")), varname = "chirps_precipitation_24mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_36mo_chirps, file.path(chirps_path, "rolling", paste0("CHIRPS2.0_global_monthly_EW_data_20000101_20230301_36mo_sum.nc")), varname = "chirps_precipitation_36mo_sum", compression = 6, overwrite = T)
-
-```
-
-# IMERG
-
-```{r}
-imerg_path <- "./outputs/raster/imerg_precipitation/"
-imerg <- list.files(imerg_path, "*.nc$", full.names = T) %>% 
-  rast()
-```
-
-```{r}
-sum_3mo_imerg <- roll(imerg, 3, type = "to", fun = "sum")
-sum_12mo_imerg <- roll(imerg, 12, type = "to", fun = "sum")
-sum_24mo_imerg <- roll(imerg, 24, type = "to", fun = "sum")
-sum_36mo_imerg <- roll(imerg, 36, type = "to", fun = "sum")
-
-writeCDF(sum_3mo_imerg, file.path(imerg_path, "rolling", paste0("3B-MO.MS.MRG.3IMERG_20000601_20210901_3mo_sum.nc")), varname = "imerg_precipitation_3mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_12mo_imerg, file.path(imerg_path, "rolling", paste0("3B-MO.MS.MRG.3IMERG_20000601_20210901_12mo_sum.nc")), varname = "imerg_precipitation_12mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_24mo_imerg, file.path(imerg_path, "rolling", paste0("3B-MO.MS.MRG.3IMERG_20000601_20210901_24mo_sum.nc")), varname = "imerg_precipitation_24mo_sum", compression = 6, overwrite = T)
-writeCDF(sum_36mo_imerg, file.path(imerg_path, "rolling", paste0("3B-MO.MS.MRG.3IMERG_20000601_20210901_36mo_sum.nc")), varname = "imerg_precipitation_36mo_sum", compression = 6, overwrite = T)
+writeCDF(sum_3mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_3mo_sum.nc")), varname = "agcd_precipitation_3mo_sum", compression = 6, overwrite = T)
+writeCDF(sum_12mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_12mo_sum.nc")), varname = "agcd_precipitation_12mo_sum", compression = 6, overwrite = T)
+writeCDF(sum_24mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_24mo_sum.nc")), varname = "agcd_precipitation_24mo_sum", compression = 6, overwrite = T)
+writeCDF(sum_36mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_36mo_sum.nc")), varname = "agcd_precipitation_36mo_sum", compression = 6, overwrite = T)
 
 ```
