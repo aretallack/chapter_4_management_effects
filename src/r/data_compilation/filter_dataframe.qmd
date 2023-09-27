@@ -59,7 +59,7 @@ Remove stocking columns Remove agcd data (for now) Remove water and fenceline bu
 ```{r}
 bonbon <- df %>%
   filter(study_zone %in% c(1, 2)) %>%
-  select(-c("area", "cattle_area", "cattle_area_2", "cattle_area_3", "sheep_area", "sheep_area_2", "sheep_area_3", "stock_area", "stock_area_2", "stock_area_3", "water", "fence_buffer", "study_zone"))
+  select(-c("water", "fence_buffer", "study_zone"))
 
 bonbon <- bonbon %>% 
   as.data.table()

@@ -685,7 +685,7 @@ gc(full = T, reset = T)
 ```
 
 ```{r eval = FALSE}
-names(df) <- c("x", "y", "station", "year", "date", "cell", "pv", "npv", "bare", "pv_12mo_min", "npv_12mo_min", "bare_12mo_min", "pv_12mo_max", "npv_12mo_max", "bare_12mo_max", "p_imerg", "p_img_3", "p_img_12", "p_agcd", "p_agcd_3", "p_agcd_12", "p_chirps", "p_chirps_3", "p_chirps_12", "paddock", "ibra_region", "ibra_subregion", "land_system", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "tsd", "area", "cattle_area", "sheep_area", "stock_area", "cattle_area_2", "cattle_area_3", "sheep_area_2", "sheep_area_3", "stock_area_2", "stock_area_3", "water")
+names(df) <- c("x", "y", "station", "date", "cell", "pv", "npv", "bare", "pv_12mo_min", "npv_12mo_min", "bare_12mo_min", "pv_12mo_max", "npv_12mo_max", "bare_12mo_max", "p_imerg", "p_img_3", "p_img_12", "p_agcd", "p_agcd_3", "p_agcd_12", "p_chirps", "p_chirps_3", "p_chirps_12", "paddock", "ibra_region", "ibra_subregion", "land_system", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "tsd", "water")
 ```
 
 # Save df

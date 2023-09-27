@@ -13,7 +13,7 @@ studyExtent <- read_sf("./outputs/vector/study_area.gpkg") %>% st_geometry()
 
 
 ```{r}
-filePath <- "E:/Data/Climate_Data/AGCD/Precipitation" %>% 
+filePath <- "E:/data/climate_data/rainfall/agcd/" %>% 
   list.files("*.nc$", full.names = T)
 outputPath <- "./outputs/raster/agcd_precipitation"
 
