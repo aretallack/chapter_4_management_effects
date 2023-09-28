@@ -1,9 +1,9 @@
 ---
-title: "Analysis of MODIS EVI"
+title: "Process Guerschman Fractional Cover"
 format: html
 ---
 
-This is the first processing step necessary for this research. Raw MODIS vegetation products (FC or EVI) are taken and processed to the desired regions for the study. The script...
+This is the first processing step necessary for this research.MODIS FC is taken and processed to the desired study region. The script...
 
 Takes input rasters - monthly fractional cover and 
 - reprojects / crops to match the study area, 
@@ -12,9 +12,11 @@ Takes input rasters - monthly fractional cover and
 ```{r}
 #| label: setup
 pacman::p_load(tidyverse, terra, sf) 
-studyExtent <- read_sf("./outputs/vector/study_area.gpkg") %>% st_geometry()
+studyExtent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  st_geometry()
 # Study extent reprojected to modis sinusoidal
-studyExtent_modsin <- studyExtent %>% st_transform("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs")
+studyExtent_modsin <- studyExtent %>% 
+  st_transform("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs")
 ```
 
 # Import Fractional Cover
@@ -36,44 +38,24 @@ dataPath_v12 <- dataPath[which(str_detect(dataPath, "v12"))]
 # Load vertical column 11 rasters
 # for pv, npv and bare
 
-pv_v11 <- rast(dataPath_v11) %>%
+fc <- rast(dataPath_v11) %>%
+  terra::merge(rast(dataPath_v12))
+  
+pv <- fc %>% 
   .[[which(str_detect(names(.), "^phot"))]]
 
-npv_v11 <- rast(dataPath_v11) %>%
+npv <- fc %>% 
   .[[which(str_detect(names(.), "^nphot"))]]
 
-bare_v11 <- rast(dataPath_v11) %>%
+bare <- fc %>% 
   .[[which(str_detect(names(.), "^bare"))]]
-
-### V12 ###
-# Load vertical column 12 rasters
-# for pv, npv and bare
-
-pv_v12 <- rast(dataPath_v12) %>%
-  .[[which(str_detect(names(.), "^phot"))]]
-
-npv_v12 <- rast(dataPath_v12) %>%
-  .[[which(str_detect(names(.), "^nphot"))]]
-
-bare_v12 <- rast(dataPath_v12) %>%
-  .[[which(str_detect(names(.), "^bare"))]]
-
-
-# Merge v11 and v12 rasters
-pv <- terra::merge(pv_v11, pv_v12)
-npv <- terra::merge(npv_v11, npv_v12)
-bare <- terra::merge(bare_v11, bare_v12)
-
-# Remove unnessecary objects
-rm(list = c("pv_v11", "npv_v11", "bare_v11","pv_v12", "npv_v12", "bare_v12"))
-
 
 # Function to crop rasters to the study area and reproject to
 # GDA94 MGA zone 53
 reproject_crop <- function(x) {
   out <- x %>%
-    crop(ext(vect(st_buffer(studyExtent_modsin, 10000)))) %>%
-    project("EPSG: 28353") %>%
+    crop(studyExtent_modsin %>% st_buffer(10000)) %>% 
+    project("EPSG:28353") %>%
     crop(studyExtent %>% st_buffer(5000))
   
   return(out)
@@ -103,7 +85,7 @@ names(bare) <- rast_names(bare)
 
 # Write rasters
 
-Save processed rasters as .tif
+Save processed rasters as .nc
 
 ```{r, eval = FALSE}
 start_date <- time(pv)[1] %>% 

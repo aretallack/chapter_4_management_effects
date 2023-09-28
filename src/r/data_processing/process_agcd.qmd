@@ -8,7 +8,8 @@ format: html
 pacman::p_load(terra, tidyverse, stringr, sf)
 
 # Load study area
-studyExtent <- read_sf("./outputs/vector/study_area.gpkg") %>% st_geometry()
+studyExtent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  st_geometry()
 ```
 
 

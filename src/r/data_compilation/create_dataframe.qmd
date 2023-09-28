@@ -43,7 +43,7 @@ blankRast[!is.na(blankRast)] <- NA
 names(blankRast) <- "blankRast"
 
 # Polygon extent of study area
-extent <- read_sf("./outputs/vector/study_area.gpkg") %>% 
+extent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
 
 # Get Dates from pv file names

@@ -97,30 +97,6 @@ dog_fence <- rbind(dog_fence$geom[1:5] %>%
 
 write_sf(dog_fence, "./outputs/vector/dog_fence.gpkg")
 ```
-
-# Bon Bon 10 km Buffer
-
-```{r}
-## Areas that are within a 10 km buffer of Bon Bon for finer-scale modelling
-bonbon <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
-  st_transform("EPSG:28353") %>% 
-  as_tibble() %>% 
-  .[which(.$NAME == "Bon Bon"), ] %>% 
-  st_as_sf() %>% 
-  st_geometry()
-
-zone <- bonbon %>% 
-  st_buffer(10000) %>% 
-  st_intersection(c(., bonbon)) %>% 
-  as_tibble() %>% 
-  add_column(zone = c(2, 1)) %>% 
-  st_as_sf()
-
-zone[is.na(zone)] <- 3
-
-write_sf(zone, "./outputs/vector/bonbon_buffer.gpkg")
-```
-
 # Water
 Water polygons, used to mask pixels to exclude
 
