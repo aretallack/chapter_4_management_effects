@@ -1,0 +1,44 @@
+---
+title: "Rainfall Plots"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: setup
+pacman::p_load(tidyverse, arrow, terra, sf, latticeExtra)
+
+# BB + surrounding. Min / Max values of cover types per pixel per year.
+dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
+  mutate(cyear = year - 2008, .after = 2)
+dat_2 <- read_parquet("./outputs/tables/bonbon.parquet")
+
+study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  st_transform("EPSG:28353")
+
+rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc") %>% 
+  # .[[which(time(.) >= as_date("2001-01-01"))]] %>% 
+  # .[[which(time(.) < as_date("2023-01-01"))]] %>% 
+  mask(study_area) %>% 
+  crop(study_area)
+```
+
+
+```{r}
+monthly_rain <- roll(rain, 12, "mean", type = "to") %>%
+  lapply(\(x) as.vector(x) %>%
+                         mean(na.rm = T)) %>%
+  unlist() %>%
+  tibble(date = time(rain),
+         rainfall = .,
+         rain = as.factor(1)) %>%
+  as.data.frame()
+
+monthly_rain <- monthly_rain %>% 
+  filter(!is.na(rainfall))
+
+monthly_rain <- monthly_rain %>% 
+  mutate(rainfall_anom = median(rainfall) - rainfall)
+```
+

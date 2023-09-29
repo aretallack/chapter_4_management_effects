@@ -32,7 +32,7 @@ For each cell and year, get the minimum, maximum, 5th and 95th percentile of eac
 #   show_query()
 
 d2 <- Reduce(merge, list(d1[is.na(pv) == F][, .(station = as.factor(unique(station)),
-                                                ibra_sr = as.factor(unique(ibra_subregion)),
+                                                nvis = as.factor(unique(nvis_group)),
                                                 pv_05 = quantile(pv, c(0.05))), 
                                             keyby = .(cell, year)],
                          d1[is.na(pv) == F][, .(pv_min = min(pv)), 
@@ -67,7 +67,7 @@ write_parquet(d2, "./outputs/tables/bonbon_minmax.parquet")
 ```
 
 
-```{r}
+```{r, eval = F}
 # visual checks 
 d2[,.(val_min = mean(pv_min,na.rm=T), 
       val_max = mean(pv_max,na.rm=T)), by=year] %>% 
