@@ -5,112 +5,282 @@ editor_options:
   chunk_output_type: console
 ---
 
+Based on rainfall plot and effects figures. It appears as though there is a
+relationship between the difference from bon bon and surrounding, and rainfall.
+
+The hypothesis is therefore that a greater rainfall anomaly results in a smaller
+difference between bon bon and surrounding stations due to increased cover overall. 
+
+So, we must determine the time lag at which the maximum correlation between
+rainfall and cover occurs. Then, we can plot the cover difference against the 
+rainfall anomaly lagged to this amount.
+
+
 ```{r}
 #| label: setup
-pacman::p_load(tidyverse, arrow, terra, sf, latticeExtra)
+pacman::p_load(tidyverse, arrow, terra, sf, data.table)
 
-# BB + surrounding. Min / Max values of cover types per pixel per year.
-dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
-  mutate(cyear = year - 2008, .after = 2)
-dat_2 <- read_parquet("./outputs/tables/bonbon.parquet")
+##########################
+### Min max cover data ###
+##########################
+
+df <- read_parquet("./outputs/tables/bonbon_minmax.parquet")
+df %>% 
+  mutate(bonbon = as.factor(ifelse(str_detect(station, "Bon Bon"), 1, 0))) %>% 
+  group_by(bonbon, year) %>%
+  summarise(mean05 = mean(npv_05)) %>% 
+  arrange(year) %>% 
+  ggplot(aes(x = year, y = mean05, colour = bonbon)) +
+  geom_line()
+
+df <- df %>% 
+  mutate(bonbon = ifelse(str_detect(station, "Bon Bon"), 1, 0),
+         veg_groups = ifelse(str_detect(nvis, "Acacia"), "Acacia Open Woodlands", "Chenopod Shrublands"))
+
+effects <- df %>% 
+  group_by(year, veg_groups) %>% 
+  summarise(pv05_eff = mean(pv_05[bonbon == 1], na.rm = T) - mean(pv_05[bonbon == 0], na.rm = T),
+            npv05_eff = mean(npv_05[bonbon == 1], na.rm = T) - mean(npv_05[bonbon == 0], na.rm = T),
+            bare95_eff = mean(bare_95[bonbon == 1], na.rm = T) - mean(bare_95[bonbon == 0], na.rm = T))
+
+effects$year <- ymd(effects$year, truncated = 2)
+effects <- effects %>% 
+  rename(date = "year")
+
+# df_2 <- read_parquet("./outputs/tables/bonbon.parquet")
 
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_transform("EPSG:28353")
 
+######################
+### Raw cover data ###
+######################
+
+df_2 <- read_parquet("./outputs/tables/bonbon.parquet")
+
+monthly_fc <- df_2 %>%
+  mutate(bonbon = as.factor(ifelse(station == "Bon Bon", 1, 0)),
+         tvc = pv + npv) %>%
+  group_by(bonbon, cell) %>%
+  arrange(date) %>%
+  mutate(tvc_12mo = frollmean(tvc, 12),
+         pv_12mo = frollmean(pv, 12),
+         npv_12mo = frollmean(npv, 12),
+         bare_12mo = frollmean(bare, 12)) %>%
+  group_by(date) %>%
+  summarise(tvc_12mo = mean(tvc_12mo),
+            pv_12mo = mean(pv_12mo),
+            npv_12mo = mean(npv_12mo),
+            bare_mean = mean(bare_12mo)) %>%
+  pivot_longer(cols = 2:ncol(.), names_to = "cover_type", values_to = "cover") %>%
+  filter(date < as_date("2023-01-01"))
+
+monthly_fc$date <- as_date(monthly_fc$date)
+
+monthly_fc <- monthly_fc %>%
+  filter(!is.na(cover))
+
+#####################
+### Rainfall Data ###
+#####################
+
 rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc") %>% 
-  # .[[which(time(.) >= as_date("2001-01-01"))]] %>% 
-  # .[[which(time(.) < as_date("2023-01-01"))]] %>% 
   mask(study_area) %>% 
   crop(study_area)
-```
 
-
-```{r}
 monthly_rain <- roll(rain, 12, "mean", type = "to") %>%
   lapply(\(x) as.vector(x) %>%
-                         mean(na.rm = T)) %>%
+           mean(na.rm = T)) %>%
   unlist() %>%
   tibble(date = time(rain),
-         rainfall = .,
+         rainfall = rain %>% lapply(\(x) as.vector(x) %>%
+           mean(na.rm = T)) %>%
+  unlist(),
+         rainfall_12 = .,
          rain = as.factor(1)) %>%
   as.data.frame()
 
 monthly_rain <- monthly_rain %>% 
-  filter(!is.na(rainfall))
-
-monthly_rain <- monthly_rain %>% 
-  mutate(rainfall_anom = median(rainfall) - rainfall)
+  mutate(rainfall_anom_12 = rainfall_12 - median(rainfall_12, na.rm = T))
 ```
 
-
-# test
+# Rainfall lag using rolling 12 month data
 
 ```{r}
-monthly_rain
+ts_fc <- monthly_fc %>% 
+  filter(cover_type == "pv_12mo") %>% 
+  select(cover) %>% 
+  unlist() %>% 
+  ts()
 
-test <- effects %>% 
-  filter(str_detect(veg_groups, "Acacia")) %>% 
-  merge(monthly_rain, by = "date", all.y = T)
-test$npv05_eff <- zoo::na.approx(test$npv05_eff, na.rm = F)
-test$pv05_eff <- zoo::na.approx(test$pv05_eff, na.rm = F)
-
-ts_rain <- test %>% 
+ts_rain <- monthly_rain %>% 
   select(rainfall_anom) %>% 
   unlist() %>% 
   ts()
 
-ts_eff <- test %>% 
-  select(pv05_eff) %>% 
-  filter(!is.na(pv05_eff)) %>% 
-  unlist() %>% 
-  ts()
+ccf_out <- ccf(ts_fc, ts_rain, nrow(monthly_rain))
 
-ccf_out <- ccf(ts_rain, ts_eff, 24)
+# month at which abs(acf) is maximum
+lag <- ccf_out[-246:-6] %>% 
+  {.$lag[which(abs(.$acf) %in% max(abs(.$acf)))]}
 
-ccf_out[-24:-10]$acf %>% abs() %>% max() %>% 
-  {which(as.vector(abs(ccf_out$acf)) == .)} %>% 
-  ccf_out$lag[.]
+coeff <- 1.2
 
-
-test %>% 
-  ggplot(aes(x = lag(rainfall_anom, 14), y = pv05_eff)) +
-  geom_line() +
-  geom_smooth(method = lm)
+monthly_fc %>% 
+  filter(cover_type == "pv_12mo") %>% 
+ggplot(aes(x = date, y = median(cover/coeff) - cover/coeff)) +
+  geom_line(data = monthly_rain, aes(y = rainfall_anom), colour = "blue") +
+  geom_line(colour = "red")
+  scale_y_continuous(
+    name = "Monthly Rainfall (mm)",
+    sec.axis = sec_axis(~.*coeff, name = "Fractional Cover (%)"),
+    )
+  
+  
+monthly_fc %>% 
+  filter(cover_type == "pv_12mo") %>% 
+ggplot(aes(x = date, y = median(cover/coeff) - cover/coeff)) +
+  geom_line(data = monthly_rain, aes(y = lag(rainfall_anom, 20)), colour = "blue") +
+  geom_line(colour = "red")
+  scale_y_continuous(
+    name = "Monthly Rainfall (mm)",
+    sec.axis = sec_axis(~.*coeff, name = "Fractional Cover (%)"),
+    )
 ```
 
-
-
-# test
+# Rainfall lag to cover differnce
 
 ```{r}
-monthly_rain
-
-test <- effects %>% 
+tmp <- effects %>%
   filter(str_detect(veg_groups, "Acacia")) %>% 
-  merge(monthly_rain, by = "date", all.y = T)
-test$npv05_eff <- zoo::na.approx(test$npv05_eff, na.rm = F)
-test$pv05_eff <- zoo::na.approx(test$pv05_eff, na.rm = F)
-
-ts_rain <- test %>% 
-  select(rainfall_anom) %>% 
-  unlist() %>% 
-  ts()
-
-ts_eff <- test %>% 
-  select(pv05_eff) %>% 
-  filter(!is.na(pv05_eff)) %>% 
-  unlist() %>% 
-  ts()
-
-ccf_out <- ccf(ts_rain, ts_eff, 24)
-
-ccf_out[-24:-10]$acf %>% abs() %>% max() %>% 
-  {which(as.vector(abs(ccf_out$acf)) == .)} %>% 
-  ccf_out$lag[.]
+  merge(monthly_rain, by = "date", all.y = T) %>% 
+  mutate(rainfall_anom_2 = (rainfall - mean(rainfall))/sd(rainfall))
 
 
-test %>% 
-  ggplot(aes(x = lag(rainfall_anom, 14), y = pv05_eff)) +
+tmp[, 3:6] <- tmp[, 3:6] %>% 
+  apply(2, \(x) zoo::na.approx(x, na.rm = F)) %>% 
+  as_tibble()
+tmp <- tmp %>% 
+  filter(!is.na(pv05_eff))
+
+ggplot(tmp, aes(x = date, y = pv05_eff)) +
+  geom_line(aes(y = rainfall_anom)) +
+  geom_line()
+
+ccf_out <- ccf(as.vector(tmp$pv05_eff), as.vector(tmp$rainfall_anom), nrow(tmp))
+
+# month at which abs(acf) is maximum
+lag <- ccf_out[min(ccf_out$lag):0] %>% 
+  {.$lag[which(abs(.$acf) %in% max(abs(.$acf)))]}
+
+ggplot(tmp, aes(x = date, y = pv05_eff)) +
+  geom_line(aes(y = lag(rainfall_anom_2, abs(lag)))) +
+  geom_line()
+
+ggplot(tmp, aes(x = lag(rainfall_anom_2, abs(lag)), y = pv05_eff/0.1)) +
   geom_line() +
   geom_smooth(method = lm)
+
+
+
+
+monthly_fc %>% 
+  filter(cover_type == "npv_12mo") %>% 
+ggplot(aes(x = date, y = median(cover/coeff) - cover/coeff)) +
+  geom_line(data = monthly_rain, aes(y = rainfall_anom), colour = "blue") +
+  geom_line(colour = "red")
+  scale_y_continuous(
+    name = "Monthly Rainfall (mm)",
+    sec.axis = sec_axis(~.*coeff, name = "Fractional Cover (%)"),
+    )
+  
+  
+monthly_fc %>% 
+  filter(cover_type == "npv_12mo") %>% 
+ggplot(aes(x = date, y = median(cover/coeff) - cover/coeff)) +
+  geom_line(data = monthly_rain, aes(y = median(rainfall) - lag(rainfall, 20)), colour = "blue") +
+  geom_line(colour = "red")
+  scale_y_continuous(
+    name = "Monthly Rainfall (mm)",
+    sec.axis = sec_axis(~.*coeff, name = "Fractional Cover (%)"),
+    )
 ```
+
+# 
+
+```{r}
+df_2 <- df_2 %>% 
+  select(date, cell, pv, npv, bare, station) %>%
+  mutate(bonbon = as.factor(ifelse(str_detect(station, "Bon Bon"), 1, 0)),
+         pv_12mo = frollapply(pv, 12, FUN = \(x) mean(x, na.rm = T)),
+         npv_12mo = frollapply(npv, 12, FUN = \(x) mean(x, na.rm = T)),
+         bare_12mo = frollapply(bare, 12, FUN = \(x) mean(x, na.rm = T)),
+         pv_12mo_5 = frollapply(pv_12mo, 12, FUN = \(x) quantile(x, 0.05, na.rm = T)),
+         npv_12mo_5 = frollapply(npv_12mo, 12, FUN = \(x) quantile(x, 0.05, na.rm = T)),
+         bare_12mo_95 = frollapply(bare_12mo, 12, FUN = \(x) quantile(x, 0.95, na.rm = T)),
+         )
+
+df_2 <- df_2 %>% 
+  filter(!is.na(pv_12mo_5))
+
+df_3 <- df_2 %>% 
+  group_by(bonbon, date) %>% 
+  summarise(pv_12mo_5 = mean(pv_12mo_5),
+            npv_12mo_5 = mean(npv_12mo_5),
+            bare_12mo_95 = mean(bare_12mo_95),
+            ) %>% 
+  filter(!is.na(npv_12mo_5)) %>% 
+  pivot_longer(cols = 3:ncol(.), names_to = "cover_type", values_to = "cover")
+df_3$date <- as_date(df_3$date)
+
+diffs <- df_3 %>% 
+  group_by(date, cover_type) %>% 
+  summarise(min = min(cover, na.rm = T),
+            max = max(cover, na.rm = T),
+            diff = max - min)
+
+ggplot(df_3, aes(x = date, y = cover, colour = cover_type)) +
+  geom_line(aes(linetype = bonbon))
+  # geom_line(data = diffs %>% filter(cover_type == "npv_12mo_5"), aes(y = diff/0.1))
+
+diffs %>% 
+  filter(cover_type == "bare_12mo_95") %>% 
+  ggplot(aes(x = date, y = diff)) +
+  geom_line()
+```
+
+
+```{r}
+cover_rain <- diffs %>% 
+  filter(cover_type == "npv_12mo_5") %>% 
+  merge(monthly_rain, by = "date")
+
+ggplot(cover_rain, aes(x = date, y = rainfall_anom_12)) +
+  geom_line() +
+  geom_line(aes(y = diff))
+
+ggplot(cover_rain, aes(x = rainfall_anom_12, y = diff)) +
+  geom_line()
+
+ts_diff <- as.vector(cover_rain %>% filter(!is.na(rainfall_anom_12)) %>% select(diff))$diff
+ts_rain <- as.vector(cover_rain %>% filter(!is.na(rainfall_anom_12)) %>% select(rainfall_anom_12))$rainfall_anom_12
+
+ccf_out <- ccf(ts_diff, ts_rain, nrow(cover_rain))
+
+lag <- ccf_out[min(ccf_out$lag):0] %>% 
+  {.$lag[which(abs(.$acf) %in% max(abs(.$acf)))]}
+
+ggplot(cover_rain, aes(x = date, y = lag(rainfall_anom_12, abs(lag)))) +
+  geom_line() +
+  geom_line(aes(y = diff))
+
+ggplot(cover_rain, aes(x = lag(rainfall_anom_12, abs(lag)), y = diff)) +
+  geom_line() +
+  geom_line(aes(y = diff))
+
+lm(diff~lag(rainfall_anom, abs(lag)), cover_rain) %>% 
+  summary()
+
+```
+
+

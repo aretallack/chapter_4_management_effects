@@ -38,8 +38,6 @@ study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>%
   st_transform("EPSG:28353")
 
 rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc") %>% 
-  # .[[which(time(.) >= as_date("2001-01-01"))]] %>% 
-  # .[[which(time(.) < as_date("2023-01-01"))]] %>% 
   mask(study_area) %>% 
   crop(study_area)
 
@@ -123,6 +121,11 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
 # PV
 ```{r}
 plot_effects(effects, "pv05_eff", labelx = ymd("2015", truncated = 2),labely = 1.1, legend_position = c(0.80, 0.11)) +
+  # geom_line(data = monthly_rain, aes(x = date, y = rainfall_anom/100, colour = NULL, linetype = NULL)) +
+  # scale_y_continuous(
+  #   name = "Fractional Cover (%)",
+  #   sec.axis = sec_axis(~.*100, name = "Monthly Rainfall (mm)")
+  #   ) +
   scale_colour_manual(values = c("#66C2A5", "#66C2A5"))
 
 ggsave("./figures/pv_05_effect.png",
@@ -131,6 +134,11 @@ ggsave("./figures/pv_05_effect.png",
        units = "cm")
 
 plot_effects(effects, "npv05_eff", labelx = ymd("2015", truncated = 2),labely = 1.5, legend_position = c(0.80, 0.11)) +
+  # geom_line(data = monthly_rain, aes(x = date, y = rainfall_anom/100, colour = NULL, linetype = NULL)) +
+  # scale_y_continuous(
+  #   name = "Fractional Cover (%)",
+  #   sec.axis = sec_axis(~.*100, name = "Monthly Rainfall (mm)")
+  #   ) +
   scale_colour_manual(values = c("#FC8D62", "#FC8D62"))
 
 ggsave("./figures/npv_05_effect.png",
