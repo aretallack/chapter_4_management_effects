@@ -34,7 +34,6 @@ effects$year <- ymd(effects$year, truncated = 2)
 effects <- effects %>% 
   rename(date = "year")
 
-
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_transform("EPSG:28353")
 
@@ -191,4 +190,5 @@ rain_effect <- merge(monthly_rain, effects, by = "date") %>%
 ggplot(rain_effect %>% filter(date > as_date("2011-01-01")), aes(x = date, y = rainfall_anom)) +
   geom_line()
 ```
+
 

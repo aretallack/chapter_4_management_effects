@@ -42,3 +42,75 @@ monthly_rain <- monthly_rain %>%
   mutate(rainfall_anom = median(rainfall) - rainfall)
 ```
 
+
+# test
+
+```{r}
+monthly_rain
+
+test <- effects %>% 
+  filter(str_detect(veg_groups, "Acacia")) %>% 
+  merge(monthly_rain, by = "date", all.y = T)
+test$npv05_eff <- zoo::na.approx(test$npv05_eff, na.rm = F)
+test$pv05_eff <- zoo::na.approx(test$pv05_eff, na.rm = F)
+
+ts_rain <- test %>% 
+  select(rainfall_anom) %>% 
+  unlist() %>% 
+  ts()
+
+ts_eff <- test %>% 
+  select(pv05_eff) %>% 
+  filter(!is.na(pv05_eff)) %>% 
+  unlist() %>% 
+  ts()
+
+ccf_out <- ccf(ts_rain, ts_eff, 24)
+
+ccf_out[-24:-10]$acf %>% abs() %>% max() %>% 
+  {which(as.vector(abs(ccf_out$acf)) == .)} %>% 
+  ccf_out$lag[.]
+
+
+test %>% 
+  ggplot(aes(x = lag(rainfall_anom, 14), y = pv05_eff)) +
+  geom_line() +
+  geom_smooth(method = lm)
+```
+
+
+
+# test
+
+```{r}
+monthly_rain
+
+test <- effects %>% 
+  filter(str_detect(veg_groups, "Acacia")) %>% 
+  merge(monthly_rain, by = "date", all.y = T)
+test$npv05_eff <- zoo::na.approx(test$npv05_eff, na.rm = F)
+test$pv05_eff <- zoo::na.approx(test$pv05_eff, na.rm = F)
+
+ts_rain <- test %>% 
+  select(rainfall_anom) %>% 
+  unlist() %>% 
+  ts()
+
+ts_eff <- test %>% 
+  select(pv05_eff) %>% 
+  filter(!is.na(pv05_eff)) %>% 
+  unlist() %>% 
+  ts()
+
+ccf_out <- ccf(ts_rain, ts_eff, 24)
+
+ccf_out[-24:-10]$acf %>% abs() %>% max() %>% 
+  {which(as.vector(abs(ccf_out$acf)) == .)} %>% 
+  ccf_out$lag[.]
+
+
+test %>% 
+  ggplot(aes(x = lag(rainfall_anom, 14), y = pv05_eff)) +
+  geom_line() +
+  geom_smooth(method = lm)
+```

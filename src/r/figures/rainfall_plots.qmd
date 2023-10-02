@@ -40,6 +40,8 @@ monthly_rain <- monthly_rain %>%
   filter(!is.na(rainfall))
 
 
+
+
 ##########################################################
 ##########################################################
 # 
@@ -88,11 +90,25 @@ monthly_fc$date <- as_date(monthly_fc$date)
 monthly_fc <- monthly_fc %>%
   filter(!is.na(cover))
 
+monthly_fc <- monthly_fc %>% 
+  group_by(bonbon, cover_type) %>% 
+  arrange(date) %>% 
+  mutate(
+    min_12 = frollapply(cover, 12, \(x) quantile(x, 0.05))
+         )
+
 ribbon_data <- monthly_fc %>%
   group_by(date, cover_type) %>% 
   summarise(max = max(cover, na.rm = T),
             min = min(cover, na.rm = T),
-            diff = max - min)
+            diff = max - min,
+            max_12 = max(min_12, na.rm = T),
+            min_12 = min(min_12, na.rm = T),
+            diff_12 = max_12 - min_12)
+
+ribbon_data[mapply(is.infinite, ribbon_data)] <- NA
+
+
 ##########################################################
 
 #################
@@ -220,13 +236,3 @@ ggsave("./figures/rainfall_FC_zoom.png",
        units = "cm")
 
 ```
-
-# Vs Rainfall Anom
-
-```{r}
-monthly_rain
-effects
-
-merge(monthly_rain, monthly_fc, by = "date")
-```
-
