@@ -51,7 +51,7 @@ bonbon %>%
   select(n) %>%
   unlist() %>% 
   as.numeric() %>% 
-  {sum(.[1:2]) / sum(.)}
+  {sum(.[1:4]) / sum(.)}
 
 bonbon <- bonbon %>% 
   filter(nvis_group %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Samphire Shrublands and Forblands", "Acacia Shrublands", "Acacia Forests and Woodlands")) %>% 

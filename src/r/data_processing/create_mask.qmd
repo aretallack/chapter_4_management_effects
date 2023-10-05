@@ -1,0 +1,56 @@
+---
+title: "Process static datasets"
+format: html
+---
+
+```{r}
+#| label: setup
+pacman::p_load(tidyverse, sf, terra)
+```
+
+```{r}
+blankRast <- rast("./outputs/raster/guerschman_fc_monthly/fc_monthly_bare_20010101_20230101.nc") %>% 
+  .[[1]]
+blankRast[!is.na(blankRast)] <- NA
+
+ibra_subregions <- read_sf("./outputs/vector/ibra_subregions.gpkg")
+
+fences <- read_sf("./outputs/vector/fences.gpkg")
+
+water <- read_sf("./outputs/vector/water_courses.gpkg") %>% 
+  mutate(water = 1)
+nvis_groups <- rast("./data/raster/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>%
+  project(blankRast)
+```
+
+```{r}
+ibra_subregions <- ibra_subregions %>% 
+  rasterize(blankRast, field = "SUB_NAME_7")
+ibra_subregions[ibra_subregions %in% c("Breakaways", "Roxby", "Kingoonya")] <- 0
+ibra_subregions[ibra_subregions != 0] <- 1
+ibra_subregions <- as.numeric(ibra_subregions)
+
+fences <- fences %>% 
+  rasterize(blankRast, field = "fence")
+fences[is.na(fences)] <- 0
+
+water <- water %>% 
+  rasterize(blankRast, field = "water")
+water[is.na(water)] <- 0
+
+nvis_groups <- nvis_groups %>%
+  project(blankRast)
+
+nvis_groups[nvis_groups %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Samphire Shrublands and Forblands", "Acacia Shrublands", "Acacia Forests and Woodlands")] <- 0
+nvis_groups[nvis_groups != 0] <- 1
+nvis_groups <- as.numeric(nvis_groups)
+
+
+mask <- (ibra_subregions + fences + water + nvis_groups)
+mask[mask < 1] <- 0
+mask[mask >= 1] <- 1
+
+
+writeRaster(mask,"./outputs/vector/mask.tif")
+```
+

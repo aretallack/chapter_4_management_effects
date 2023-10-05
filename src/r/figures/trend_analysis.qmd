@@ -1,0 +1,104 @@
+---
+title: "test"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+pacman::p_load(tidyverse, terra, data.table, mblm)
+
+raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", full.names = T))
+stations <- read_sf("./outputs/vector/pastoral_stations.gpkg") %>% 
+  st_geometry()
+
+pv <- raster[[str_detect(names(raster), "_pv*")]]
+npv <- raster[[str_detect(names(raster), "_npv*")]]
+bare <- raster[[str_detect(names(raster), "_bare*")]]
+```
+
+
+```{r}
+calc_slopes <- function(x, percentile){
+  
+  # x <- x %>% 
+  #   roll(12, median)
+
+  roll_5th <- x %>% 
+    roll(12, \(x) quantile(x, percentile, na.rm = T))
+  
+  df <- roll_5th %>% 
+    as.data.frame(cells = T, xy = T) %>% 
+    pivot_longer(-c(1:3))
+  
+  # Function for linear regression.
+  # Applied to each cell later
+  get_slope <- function(x) {
+    # lm(value ~  seq_len(length(x)), x) %>% 
+    #             .$coefficient %>% 
+    #             .[2] %>% return()
+
+  v <-  x %>%
+    .$value
+  t <- seq_len(length(v))
+  
+  suppressWarnings(mblm(v ~ t, repeated = T)) %>%
+    summary() %>% 
+    .$coefficients %>% 
+    .[2,1] %>% return()
+  }
+
+  split_df <- df %>% 
+    group_by(cell) %>% 
+    group_split() %>%
+    as.list()
+  #################
+  ### clean NAs ###
+  #################
+  # Find cells that have NA values at some point in timeseries
+  # remove from split df and full df
+  have_na <- split_df %>% lapply(\(x) x$value %>% is.na() %>% sum()) %>% unlist %>% {which(. > 0)}
+  na_cells <- df$cell %>% unique() %>% .[have_na]
+  split_df <- split_df[-have_na]
+  df <- df[-which(df$cell %in% na_cells),]
+  
+  #####################
+  ### start cluster ###
+  cl <- parallel::makeCluster(parallel::detectCores())
+  parallel::clusterExport(cl, c("get_slope"))
+  parallel::clusterCall(cl, function() library(tidyverse))
+  parallel::clusterCall(cl, function() library(mblm))
+  ####################
+  
+  # Get slopes for each cell and add to dataframe
+  slopes <- parallel::parLapply(cl, X = split_df, get_slope) %>% 
+    # lapply(get_slope) %>% 
+    unlist() %>% 
+    as.vector() %>% 
+    tibble(cell = df$cell %>% unique(),
+           slope = .) %>% 
+    {merge(df[1:3] %>% filter(!duplicated(cell)), ., by = "cell")}
+  
+  ####################
+  ### stop cluster ###
+  parallel::stopCluster(cl)
+  ####################
+  
+  # Convert df to raster
+  out_rast <- slopes %>% 
+    .[,-1] %>%
+    tidyterra::as_spatraster(crs = "epsg:28353")
+  
+  return(out_rast)
+}
+
+pv_slope <- calc_slopes(pv, 0.05)
+npv_slope <- calc_slopes(npv, 0.05)
+bare_slope <- calc_slopes(bare, 0.95)
+
+writeRaster(pv_slope, "./figures/pv_slope.tif", overwrite = T)
+writeRaster(npv_slope, "./figures/npv_slope.tif", overwrite = T)
+writeRaster(bare_slope, "./figures/bare_slope.tif", overwrite = T)
+```
+
+

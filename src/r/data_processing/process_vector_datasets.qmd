@@ -59,10 +59,11 @@ st_write(pastoral_landsystems, "./outputs/vector/pastoral_landsystems.gpkg", del
 
 # Station Fence Buffer
 
-500 m buffer around station fences
+500 m buffer around bon bon
 
 ```{r}
 fences <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
+  .[which(.$NAME == "Bon Bon"),] %>% 
   st_transform("EPSG:28353") %>% 
   st_cast("POLYGON") %>%
   st_cast("LINESTRING") %>%

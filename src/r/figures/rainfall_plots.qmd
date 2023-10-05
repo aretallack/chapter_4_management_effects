@@ -78,10 +78,14 @@ monthly_fc <- dat_2 %>%
   group_by(bonbon, cell) %>%
   arrange(date) %>%
   mutate(tvc_12mo = frollmean(tvc, 12),
+         pv_12mo = frollmean(pv, 12),
+         npv_12mo = frollmean(npv, 12),
          bare_12mo = frollmean(bare, 12)) %>%
   group_by(date, bonbon) %>%
-  summarise(tvc_mean = mean(tvc_12mo),
-            bare_mean = mean(bare_12mo)) %>%
+  summarise(tvc_12mo = mean(tvc_12mo),
+            pv_12mo = mean(pv_12mo),
+            npv_12mo = mean(npv_12mo),
+            bare_12mo = mean(bare_12mo)) %>%
   pivot_longer(cols = 3:ncol(.), names_to = "cover_type", values_to = "cover") %>%
   filter(date < as_date("2023-01-01"))
 
@@ -101,136 +105,148 @@ ribbon_data <- monthly_fc %>%
   group_by(date, cover_type) %>% 
   summarise(max = max(cover, na.rm = T),
             min = min(cover, na.rm = T),
-            diff = max - min,
-            max_12 = max(min_12, na.rm = T),
-            min_12 = min(min_12, na.rm = T),
-            diff_12 = max_12 - min_12)
+            diff = max - min)
 
 ribbon_data[mapply(is.infinite, ribbon_data)] <- NA
 
-
 ##########################################################
+```
 
-#################
-### All Years ###
-#################
+# Cover Plot
 
-coeff <- 1.2
+```{r}
+monthly_fc <- monthly_fc %>% 
+  filter(cover_type != "tvc_12mo")
 
-p <- ggplot(monthly_rain, aes(x = date)) +
-  geom_line(aes(y = rainfall, alpha = rain), colour = "lightblue", show.legend = F) +
-  geom_line(data = monthly_fc, aes(y = cover/coeff, linetype = paste0(bonbon, cover_type), colour = paste0(bonbon, cover_type)), linewidth = 0.6) +
-  annotate("rect", xmin = as_date("2008-01-01"), xmax = as_date("2008-04-01"), ymin = 4, ymax = 72,
+ribbon_data <- ribbon_data %>% 
+  filter(cover_type != "tvc_12mo")
+
+plot_cover <- function(x, y) {
+  monthly_fc <- x
+  ribbon_data <- y
+  
+ggplot(monthly_fc, aes(x = date)) +
+  # geom_line(aes(y = rainfall, alpha = rain), colour = "lightblue", show.legend = F) +
+  geom_line(aes(y = cover, linetype = paste0(bonbon, cover_type), colour = paste0(bonbon, cover_type)), linewidth = 0.6) +
+  geom_ribbon(data = ribbon_data, aes(ymin = min, ymax = max, fill = cover_type), alpha = 0.2, show.legend = F) +
+  annotate("rect", xmin = as_date("2008-01-01"), xmax = as_date("2008-04-01"), ymin = 0, ymax = 72,
            alpha = .1, fill = "black") +
-  annotate("rect", xmin = ymd("2008-04-01"), xmax = ymd("2023-01-01"), ymin = 30/coeff, ymax = 70/coeff,
+  annotate("rect", xmin = ymd("2008-04-01"), xmax = ymd("2023-01-01"), ymin = 0, ymax = 72,
            alpha = .1, fill = "#8DA0CB") +
-  annotate("text", x = as_date("2017-08-01"), y = 55,
+  annotate("text", x = as_date("2013-09-01"), y = 65,
            label = "bold('Bon Bon Destocked')",
            hjust = 1, color = "#8DA0CB", parse = T,
            size = 10/.pt) +
-  scale_y_continuous(
-    name = "Monthly Rainfall (mm)",
-    sec.axis = sec_axis(~.*coeff, name = "Fractional Cover (%)"),
-    breaks = seq(0, 50, by = 10)
-    ) +
-  coord_cartesian(ylim = c(0, 55),
-                  xlim = c(min(monthly_rain$date), max(monthly_rain$date))) +
-  scale_x_date(breaks = "2 year", date_labels = "%Y", expand = c(0, 0)) +
-  scale_colour_manual(breaks = c("0bare_mean", "1bare_mean", "0tvc_mean", "1tvc_mean"),
-                      labels = c("Bare (Surrounding)", "Bare (Bon Bon)", "TVC (Surrounding)", "TVC (Bon Bon)"),
-                      values = c("#FC8D62", "#FC8D62", "#66C2A5", "#66C2A5")) +
-  scale_linetype_manual(breaks = c("0bare_mean", "1bare_mean", "0tvc_mean", "1tvc_mean"),
-                        labels = c("Bare (Surrounding)", "Bare (Bon Bon)", "TVC (Surrounding)", "TVC (Bon Bon)"),
-                        values = c("dashed", "solid", "dashed", "solid")) +
-  scale_alpha_manual(labels = "",
-                     values = 1) +
+  coord_cartesian(ylim = c(min(monthly_fc$cover), (max(monthly_fc$cover) + 2)),
+                  xlim = c(as_date("2002-01-01"), as_date("2023-01-01"))) +
+  scale_y_continuous(breaks = seq(plyr::round_any(min(monthly_fc$cover), 10, floor), 
+                                  plyr::round_any(max(monthly_fc$cover) + 5, 10, ceiling), 
+                                  5)) +
+  scale_x_date(limits = as_date(c(as_date("2002-01-01"), as_date("2023-01-01"))), 
+               breaks = "2 year", date_labels = "%Y", 
+               expand = c(0, 0)) +
+  scale_colour_manual(breaks = c("1bare_12mo", "0bare_12mo", "1npv_12mo", "0npv_12mo", "1pv_12mo", "0pv_12mo"),
+                      labels = c("Bon Bon", "Surrounding", "Bon Bon", "Surrounding", "Bon Bon", "Surrounding"),
+                      values = c("#FC8D62", "#FC8D62", "#8DA0CB", "#8DA0CB", "#66C2A5", "#66C2A5")) +
+  scale_fill_manual(breaks = c("bare_12mo", "npv_12mo", "pv_12mo"),
+                      labels = c("Bare Difference", "NPV Difference", "PV Difference"),
+                      values = c("#FC8D62", "#8DA0CB", "#66C2A5")) +
+  scale_linetype_manual(breaks = c("1bare_12mo", "0bare_12mo", "1npv_12mo", "0npv_12mo", "1pv_12mo", "0pv_12mo"),
+                        labels = c("Bon Bon", "Surrounding", "Bon Bon", "Surrounding", "Bon Bon", "Surrounding"),
+                        values = c("solid", "dashed", "solid", "dashed", "solid", "dashed")) +
   labs(colour = "Vegetation Cover",
        linetype = "Vegetation Cover",
-       alpha = "Rainfall",
-       x = "Year") +
+       fill = "Vegetation Cover",
+       x = "Date",
+       y = "Cover (%)") +
   theme_classic() +
   theme(
-    axis.text = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 8),
     axis.title = element_text(size = 10, face = "bold"),
     axis.title.x = element_text(vjust = unit(-0.1, "cm")),
     axis.title.y.right = element_text(vjust = unit(0.2, "cm")),
     axis.title.y.left = element_text(margin = unit(c(0, 0.2, 0, 0), "cm")),
-    legend.spacing.y = unit(-0.1, "cm"),
-    legend.spacing.x = unit(0.6, "cm"),
+    legend.spacing.x = unit(0.1, "cm"),
     legend.key.width = unit(1, "cm"),
-    legend.box = "horizontal",
+    legend.direction = "horizontal",
     legend.background = element_rect(fill = "transparent"),
-    legend.position = c(0.5, 0.03),
+    legend.position = c(0.1, 0.87),
     legend.title = element_blank(),
-    legend.text = element_text(size = 7, face = "bold")
+    legend.text = element_text(size = 7, face = "bold"),
+    strip.background = element_blank(),
+    strip.text = element_blank()
   ) +
-  guides(linetype = guide_legend(ncol = 4, order = 1, title.position = "top", override.aes = list(linewidth = 1)),
-         colour = guide_legend(ncol = 4, label.position = "top", order = 1),
-         alpha = guide_legend(order = 2))
+  guides(linetype = guide_legend(order = 1, override.aes = list(linewidth = 1)),
+         colour = guide_legend(label.position = "right", order = 1),
+         alpha = guide_legend(order = 2),
+         fill = guide_legend(override.aes = list(alpha = 1)))
+  }
 
-p
+bare_plot <- plot_cover(monthly_fc %>% 
+             filter(cover_type == "bare_12mo"),
+           ribbon_data %>% 
+             filter(cover_type == "bare_12mo")) +
+  theme(legend.position = c(0.8, 0.92)) +
+  annotate("text", x = as_date("2002-06-01"), y = 65,
+           label = "underline(bold('Bare'))",
+           hjust = 0, color = "#FC8D62", parse = T,
+           size = 12/.pt)
+
+npv_plot <- plot_cover(monthly_fc %>% 
+             filter(cover_type == "npv_12mo"),
+           ribbon_data %>% 
+             filter(cover_type == "npv_12mo")) +
+  theme(legend.position = c(0.8, 0.9)) +
+  annotate("text", x = as_date("2002-06-01"), y = 39,
+           label = "underline(bold('NPV'))",
+           hjust = 0, color = "#8DA0CB", parse = T,
+           size = 12/.pt)
+
+pv_plot <- plot_cover(monthly_fc %>% 
+             filter(cover_type == "pv_12mo"),
+           ribbon_data %>% 
+             filter(cover_type == "pv_12mo")) +
+  theme(legend.position = c(0.8, 0.9)) +
+  annotate("text", x = as_date("2002-06-01"), y = 14.8,
+           label = "underline(bold('PV'))",
+           hjust = 0, color = "#66C2A5", parse = T,
+           size = 12/.pt)
+
 ```
 
-# Zoomed plot
+# Rainfall Plot
+
 ```{r}
-p2 <- ggplot(monthly_fc %>% filter(date >= as_date("2008-01-01")), aes(x = date)) +
-  # Use alpha aes and manually scale to 1 to get rainfall legend seperate from
-  # cover type.
-  geom_line(aes(y = cover, linetype = paste0(bonbon, cover_type), colour = paste0(bonbon, cover_type)), linewidth = 1.2, show.legend = F) +
-  geom_ribbon(data = ribbon_data %>% filter(date >= as_date("2008-01-01")), aes(ymin = min, ymax = max, fill = cover_type), alpha = 0.2) +
-  annotate("rect", xmin = ymd("2008-04-01"), xmax = max(monthly_fc$date), ymin = 30, ymax = 72,
-           alpha = 0.1, fill = "#8DA0CB") +
-  annotate("text", x = as_date("2017-08-01"), y = 68,
-           label = "bold('Bon Bon Destocked')",
-           hjust = 1, color = "#8DA0CB", parse = T,
-           size = 10/.pt) +
-  annotate("rect", xmin = as_date("2008-01-01"), xmax = as_date("2008-04-01"), ymin = 2, ymax = 72,
-           alpha = .1, fill = "black") +
-  scale_y_continuous(breaks = seq(0, 70, by = 10),
-                     position = "right") + 
-  coord_cartesian(ylim = c(33, 70),
-                  xlim = c(ymd("2008-01-01"), max(monthly_fc$date))) +
-  scale_x_date(limits = as_date(c("2008-01-01", max(monthly_fc$date))),
-               breaks = "2 year", 
-               date_labels = "%Y", 
+p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
+  geom_line(colour = "steelblue") +
+  scale_x_date(limits = as_date(c(as_date("2002-01-01"), as_date("2023-01-01"))), 
+               breaks = "2 year", date_labels = "%Y", 
                expand = c(0, 0)) +
-  scale_colour_manual(breaks = c("0bare_mean", "1bare_mean", "0tvc_mean", "1tvc_mean"),
-                      labels = c("Bare (Surrounding)", "Bare (Bon Bon)", "TVC (Surrounding)", "TVC (Bon Bon)"),
-                      values = c("#FC8D62", "#FC8D62", "#66C2A5", "#66C2A5")) +
-  scale_linetype_manual(breaks = c("0bare_mean", "1bare_mean", "0tvc_mean", "1tvc_mean"),
-                        labels = c("Bare (Surrounding)", "Bare (Bon Bon)", "TVC (Surrounding)", "TVC (Bon Bon)"),
-                        values = c("dashed", "solid", "dashed", "solid")) +
-  scale_fill_manual(labels = c("Bare Difference", "TVC Difference"), values = c("#FC8D62", "#66C2A5")) +
-  labs(colour = "Vegetation Cover",
-       linetype = "Vegetation Cover",
-       x = "Year",
-       y = "Fractional Cover (%)") +
+  labs(y = "Monthly\nRainfall (mm)",
+       x = "Year") +
   theme_classic() +
   theme(
-    axis.text = element_text(size = 10),
-    axis.title.x = element_text(size = 10, face = "bold", vjust = unit(-0.1, "cm")),
-    axis.title.y.right = element_text(vjust = unit(0.2, "cm")),
-    axis.title.y.left = element_text(margin = unit(c(0, 0.2, 0, 0), "cm")),
-    legend.key.width = unit(0.5, "cm"),
-    legend.key.height = unit(0.25, "cm"),
-    legend.box = "vertical",
-    legend.background = element_rect(fill = "transparent"),
-    legend.position = c(0.13, 0.92),
-    legend.title = element_blank(),
-    legend.text = element_text(size = 7, face = "bold")
-  ) +
-  guides(fill = guide_legend(override.aes = list(alpha = 1)))
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10)
+  )
 
-p2
-
-ggpubr::ggarrange(p +
-                    ggpubr::rremove("x.title"), 
+ggpubr::ggarrange(bare_plot +
+                    ggpubr::rremove("x.title"),
+                    # ggpubr::rremove("x.text"),
+                  npv_plot +
+                    ggpubr::rremove("x.title"),
+                    # ggpubr::rremove("x.text"),
+                  pv_plot +
+                    ggpubr::rremove("x.title"),
+                    # ggpubr::rremove("x.text")
                   p2,
                   ncol = 1,
-                  heights = c(1, 0.6),
+                  nrow = 4,
+                  heights = c(1, 1, 1, 1),
                   align = "v")
 
-ggsave("./figures/rainfall_FC_zoom.png",
+ggsave("./figures/rainfall_FC.png",
        width = 16,
        height = 14,
        units = "cm")
