@@ -50,7 +50,8 @@ mask <- (ibra_subregions + fences + water + nvis_groups)
 mask[mask < 1] <- 0
 mask[mask >= 1] <- 1
 
+names(mask) <- "mask"
 
-writeRaster(mask,"./outputs/vector/mask.tif")
-```
+writeRaster(mask, "./outputs/raster/mask.tif", overwrite = T)
+= %>% ```
 

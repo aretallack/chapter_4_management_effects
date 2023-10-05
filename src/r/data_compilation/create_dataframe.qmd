@@ -1,6 +1,8 @@
 ---
 title: "Create_Dataframe"
 format: html
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -396,15 +398,41 @@ rm(water)
 gc(full = T, reset = T)
 ```
 
+# Mask
+
+```{r}
+mask <- rast("./outputs/raster/mask.tif") %>%
+  as.data.frame(xy = T, cells = T)
+setDT(mask)
+setkeyv(mask, c("x", "y"))
+
+df <- merge(df, mask %>% select(-cell),
+            by = c("x", "y"),
+            all.x = T)
+rm(mask)
+gc(full = T, reset = T)
+
+df <- df %>%
+  filter(mask != 1)
+
+df <- df %>%
+  select(-mask)
+```
+
 ```{r eval = FALSE}
 names(df) <- c("x", "y", "date", "cell", "pv", "npv", "bare", "p_agcd", "p_agcd_3", "p_agcd_12", "station", "paddock", "ibra_region", "ibra_subregion", "land_system", "land_system_id", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "water")
 ```
 
+
+
+
+
 # Save df
 
 ```{r, eval = FALSE}
-# test <- df[sample(1:nrow(df), 10000), ]
-# test2 <- st_as_sf(test, coords = c("x", "y"))
-
 arrow::write_parquet(df, file.path(outputFolder, "full_dataframe.parquet"))
+# df %>%
+#   .[sample(1:nrow(.), 10000),] %>% 
+#   st_as_sf(coords = c("x", "y")) %>% st_geometry() %>% 
+#   plot()
 ```
