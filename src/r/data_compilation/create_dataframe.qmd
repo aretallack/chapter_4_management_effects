@@ -102,15 +102,9 @@ df <- cbind(pv, npv[,5]) %>%
 
 rm(list = c("pv", "npv", "bare"))
 gc(full = T, reset = T)
-<<<<<<< HEAD
-
-=======
->>>>>>> 87e8d9f98256a9a72cff7c4b335eb7c66aedc204
 ```
 
-# Rainfall
-
-## AGCD Precipitation
+# AGCD Precipitation
 
 ```{r}
 p_agcd <- processRainfall("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc", "p_agcd")
@@ -146,31 +140,6 @@ df <- merge(df,
 rm(p_agcd_12)
 gc(full = T, reset = T)
 
-<<<<<<< HEAD
-=======
-# p_agcd_24 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2_preicp_monthly_20010101_20200501_24mo_sum.nc", "p_agcd_24")
-# 
-# setkeyv(p_agcd_24, c("date", "x","y"))
-# df <- merge(df, 
-#             p_agcd_24 %>% select(-cell), 
-#             by = c("date", "x", "y"),
-#             all.x = T)
-# 
-# rm(p_agcd_24)
-# gc(full = T, reset = T)
-# 
-# p_agcd_36 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2_preicp_monthly_20010101_20200501_36mo_sum.nc", "p_agcd_36")
-# 
-# setkeyv(p_agcd_36, c("date", "x","y"))
-# df <- merge(df, 
-#             p_agcd_36 %>% select(-cell), 
-#             by = c("date", "x", "y"),
-#             all.x = T)
-# 
-# rm(p_agcd_36)
-# gc(full = T, reset = T)
-
->>>>>>> 87e8d9f98256a9a72cff7c4b335eb7c66aedc204
 ```
 
 # Statistical zones
@@ -366,11 +335,8 @@ gc(full = T, reset = T)
 ### Station Fence Buffer ###
 ############################
 
-fences <- read_sf("E:/data/Basedata/Pastoral/Statewide/ADMIN_PastoralStations_GDA2020.shp")
-sf::write_sf(fences, "./data/vector/pastoral_stations.gpkg")
 
 fences <- read_sf("./outputs/vector/fences.gpkg") %>%
-  vect() %>%
   rasterize(blankRast, field = "fence") %>% 
   as.data.frame(xy = T, cells = T)
 setDT(fences)
@@ -404,10 +370,7 @@ df <- merge(df,
 rm(dog_fence)
 gc(full = T, reset = T)
 ```
-<<<<<<< HEAD
 
-=======
->>>>>>> 87e8d9f98256a9a72cff7c4b335eb7c66aedc204
 # Water areas
 
 ```{r}
