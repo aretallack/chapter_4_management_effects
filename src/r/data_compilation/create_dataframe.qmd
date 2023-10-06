@@ -108,39 +108,39 @@ gc(full = T, reset = T)
 
 # AGCD Precipitation
 
-```{r}
-p_agcd <- processRainfall("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc", "p_agcd")
-
-setkeyv(p_agcd, c("date", "x","y"))
-df <- merge(df, 
-            p_agcd %>% select(-cell), 
-            by = c("date", "x", "y"),
-            all.x = T)
-
-rm(p_agcd)
-gc(full = T, reset = T)
-
-p_agcd_3 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_3mo_sum.nc", "p_agcd_3")
-
-setkeyv(p_agcd_3, c("date", "x","y"))
-df <- merge(df, 
-            p_agcd_3 %>% select(-cell), 
-            by = c("date", "x", "y"),
-            all.x = T)
-
-rm(p_agcd_3)
-gc(full = T, reset = T)
-
-p_agcd_12 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_12mo_sum.nc", "p_agcd_12")
-
-setkeyv(p_agcd_12, c("date", "x","y"))
-df <- merge(df, 
-            p_agcd_12 %>% select(-cell), 
-            by = c("date", "x", "y"),
-            all.x = T)
-
-rm(p_agcd_12)
-gc(full = T, reset = T)
+```{r eval = F}
+# p_agcd <- processRainfall("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc", "p_agcd")
+# 
+# setkeyv(p_agcd, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd)
+# gc(full = T, reset = T)
+# 
+# p_agcd_3 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_3mo_sum.nc", "p_agcd_3")
+# 
+# setkeyv(p_agcd_3, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd_3 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd_3)
+# gc(full = T, reset = T)
+# 
+# p_agcd_12 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_12mo_sum.nc", "p_agcd_12")
+# 
+# setkeyv(p_agcd_12, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd_12 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd_12)
+# gc(full = T, reset = T)
 
 ```
 
@@ -170,46 +170,6 @@ df <- merge(df,
 rm(stations)
 gc(full = T, reset = T)
 
-################
-### Paddocks ###
-################
-
-paddocks <- read_sf("./outputs/vector/pastoral_paddocks.gpkg") %>%
-  st_transform(crs = "EPSG:28353") %>% 
-  vect() %>% 
-  rasterize(blankRast, field = "NAME") %>% 
-  as.data.frame(xy = T, cells = T)
-setDT(paddocks)
-
-setkeyv(paddocks, c("x","y"))
-df <- merge(df, 
-            paddocks %>% select(-cell), 
-            by = c("x", "y"),
-            all.x = T)
-
-rm(paddocks)
-gc(full = T, reset = T)
-
-####################
-### IBRA Regions ###
-####################
-
-ibra_r <- read_sf("./outputs/vector/ibra_subregions.gpkg") %>% 
-  st_transform("EPSG:28353") %>% 
-  vect() %>% 
-  rasterize(blankRast, field = "REG_NAME_7") %>% 
-  as.data.frame(xy = T, cells = T)
-setDT(ibra_r)
-
-setkeyv(ibra_r, c("x","y"))
-
-df <- merge(df, 
-            ibra_r %>% select(-cell), 
-            by = c("x", "y"),
-            all.x = T)
-
-rm(ibra_r)
-gc(full = T, reset = T)
 
 #######################
 ### IBRA SubRegions ###
@@ -419,20 +379,25 @@ df <- df %>%
   select(-mask)
 ```
 
-```{r eval = FALSE}
-names(df) <- c("x", "y", "date", "cell", "pv", "npv", "bare", "p_agcd", "p_agcd_3", "p_agcd_12", "station", "paddock", "ibra_region", "ibra_subregion", "land_system", "land_system_id", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "water")
+```{r}
+df <- df %>% 
+  mutate(year = year(date),
+         .after = 4)
 ```
 
 
-
+```{r}
+names(df) <- c("x", "y", "cell", "date", "year", "pv", "npv", "bare", "station", "ibra_subregion", "land_system", "land_system_id", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "water")
+```
 
 
 # Save df
 
-```{r, eval = FALSE}
+```{r}
 arrow::write_parquet(df, file.path(outputFolder, "full_dataframe.parquet"))
+
 # df %>%
-#   .[sample(1:nrow(.), 10000),] %>% 
-#   st_as_sf(coords = c("x", "y")) %>% st_geometry() %>% 
+#   .[sample(1:nrow(.), 10000),] %>%
+#   st_as_sf(coords = c("x", "y")) %>% st_geometry() %>%
 #   plot()
 ```

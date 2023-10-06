@@ -13,7 +13,7 @@ preciding 3 or 12 months of precipitation from this time.
 ```{r}
 #| label: setup
 pacman::p_load(arrow, tidyverse, data.table, dtplyr)
-d1 <- arrow::read_parquet("./outputs/tables/bonbon.parquet")
+d1 <- arrow::read_parquet("./outputs/tables/full_dataframe.parquet")
 ```
 
 # select min and max cover rows
@@ -59,46 +59,11 @@ d2 <- Reduce(merge, list(d1[is.na(pv) == F][, .(station = as.factor(unique(stati
                                               keyby = .(cell, year)],
                          d1[is.na(bare) == F][, .(bare_max = max(bare)), 
                                               keyby = .(cell, year)]
-                         ))
+                         )
+             )
 ```
 
 ```{r}
 write_parquet(d2, "./outputs/tables/bonbon_minmax.parquet")
-```
-
-
-```{r, eval = F}
-# visual checks 
-d2[,.(val_min = mean(pv_min,na.rm=T), 
-      val_max = mean(pv_max,na.rm=T)), by=year] %>% 
-  pivot_longer(-year) %>% 
-  ggplot(aes(year,value,color=name))+
-  geom_line()
-
-d2[,.(val_min = mean(npv_min,na.rm=T), 
-      val_max = mean(npv_max,na.rm=T)), by=year] %>% 
-  pivot_longer(-year) %>% 
-  ggplot(aes(year,value,color=name))+
-  geom_line()
-
-## THERE IS SOMETHING WEIRD GOING ON IN 2023
-## because 2023 only has one month of data? unclear
-d2[,.(val_min = mean(bare_min,na.rm=T), 
-      val_max = mean(bare_max,na.rm=T)), by=year] %>% 
-  pivot_longer(-year) %>% 
-  ggplot(aes(year,value,color=name))+
-  geom_line() +geom_point()
-
-d2[year==2023]$bare_min %>% summary()
-d2[year==2023]$bare_max %>% summary()
-
-min(d1[year==2023][is.na(bare)==F]$bare,na.rm=T)
-max(d1[year==2023][is.na(bare)==F]$bare,na.rm=T)
-min(d1[year==2023]$bare,na.rm=T)
-max(d1[year==2023]$bare,na.rm=T)
-d1[year==2023]$bare %>% summary
-d2[year==2023]$bare_min %>% summary()
-d2[year==2023]$bare_max %>% summary()
-
 ```
 

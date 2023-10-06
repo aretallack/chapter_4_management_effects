@@ -156,7 +156,7 @@ p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
        x = "Year") +
   theme_classic() +
   theme(
-    axis.title = element_text(face = "bold"),
+    axis.title = element_text(face = "bold"),s
     axis.text = element_text(size = 10)
   )
 

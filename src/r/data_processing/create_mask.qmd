@@ -21,6 +21,7 @@ water <- read_sf("./outputs/vector/water_courses.gpkg") %>%
   mutate(water = 1)
 nvis_groups <- rast("./data/raster/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>%
   project(blankRast)
+pastoral_landSystems <- read_sf("./outputs/vector/pastoral_landsystems.gpkg")
 ```
 
 ```{r}
@@ -45,13 +46,19 @@ nvis_groups[nvis_groups %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Sa
 nvis_groups[nvis_groups != 0] <- 1
 nvis_groups <- as.numeric(nvis_groups)
 
+pastoral_landSystems <- pastoral_landSystems %>%
+  rasterize(blankRast, field = "OBJECTID")
+pastoral_landSystems[pastoral_landSystems == 770] <- 1
+pastoral_landSystems[pastoral_landSystems != 1] <- 0
 
-mask <- (ibra_subregions + fences + water + nvis_groups)
+
+mask <- (ibra_subregions + fences + water + nvis_groups + pastoral_landSystems)
 mask[mask < 1] <- 0
 mask[mask >= 1] <- 1
 
 names(mask) <- "mask"
 
 writeRaster(mask, "./outputs/raster/mask.tif", overwrite = T)
-= %>% ```
+
+```
 
