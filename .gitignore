@@ -17,4 +17,5 @@
 data/vector/water_courses.gpkg
 /src/arcgis
 /src/qgis
-/docs/
+/doc/
+.tmp.driveupload/

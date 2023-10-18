@@ -7,7 +7,7 @@ editor_options:
 
 ```{r}
 #| label: setup
-pacman::p_load(tidyverse, arrow, terra, sf, latticeExtra)
+pacman::p_load(tidyverse, arrow, terra, sf, data.table, latticeExtra)
 
 # BB + surrounding. Min / Max values of cover types per pixel per year.
 dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
@@ -39,39 +39,6 @@ monthly_rain <- roll(rain, 12, "mean", type = "to") %>%
 monthly_rain <- monthly_rain %>%
   filter(!is.na(rainfall))
 
-
-
-
-##########################################################
-##########################################################
-# 
-# monthly_rain <- lapply(rain, \(x) as.vector(x) %>%
-#                          mean(na.rm = T)) %>%
-#   unlist() %>%
-#   tibble(date = time(rain),
-#          rainfall = .,
-#          rain = as.factor(1)) %>%
-#   as.data.frame()
-
-##########################################################
-##########################################################
-# # 
-# monthly_fc <- dat_2 %>%
-#   mutate(bonbon = as.factor(ifelse(station == "Bon Bon", 1, 0)),
-#          tvc = pv + npv) %>%
-#   group_by(date, bonbon) %>%
-#   summarise(pv_mean = mean(pv),
-#             npv_mean = mean(npv),
-#             tvc_mean = mean(tvc),
-#             bare_mean = mean(bare)) %>%
-#   pivot_longer(cols = 3:ncol(.), names_to = "cover_type", values_to = "cover") %>%
-#   filter(date < as_date("2023-01-01")) %>%
-#   filter(cover_type %in% c("tvc_mean", "bare_mean"))
-# monthly_fc$date <- as_date(monthly_fc$date)
-
-##########################################################
-##########################################################
-# 
 monthly_fc <- dat_2 %>%
   mutate(bonbon = as.factor(ifelse(station == "Bon Bon", 1, 0)),
          tvc = pv + npv) %>%
@@ -131,12 +98,10 @@ ggplot(monthly_fc, aes(x = date)) +
   geom_ribbon(data = ribbon_data, aes(ymin = min, ymax = max, fill = cover_type), alpha = 0.2, show.legend = F) +
   annotate("rect", xmin = as_date("2008-01-01"), xmax = as_date("2008-04-01"), ymin = 0, ymax = 72,
            alpha = .1, fill = "black") +
-  annotate("rect", xmin = ymd("2008-04-01"), xmax = ymd("2023-01-01"), ymin = 0, ymax = 72,
-           alpha = .1, fill = "#8DA0CB") +
-  annotate("text", x = as_date("2013-09-01"), y = 65,
+  annotate("text", x = as_date("2012-09-01"), y = 66,
            label = "bold('Bon Bon Destocked')",
-           hjust = 1, color = "#8DA0CB", parse = T,
-           size = 10/.pt) +
+           hjust = 1, color = "grey30", parse = T,
+           size = 8/.pt) +
   coord_cartesian(ylim = c(min(monthly_fc$cover), (max(monthly_fc$cover) + 2)),
                   xlim = c(as_date("2002-01-01"), as_date("2023-01-01"))) +
   scale_y_continuous(breaks = seq(plyr::round_any(min(monthly_fc$cover), 10, floor), 

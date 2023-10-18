@@ -381,7 +381,7 @@ df <- df %>%
 
 ```{r}
 df <- df %>% 
-  mutate(year = year(date),
+  mutate(year = as.factor(year(df$date)),
          .after = 4)
 ```
 

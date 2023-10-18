@@ -67,7 +67,6 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
   df <- effects[[cover_type]] %>% 
     cbind(effects[,1:3], .) %>% 
     rename(values = 4)
-    
   
   cover_name <- cover_type %>%
     str_split("_", simplify = T) %>%
@@ -75,24 +74,6 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
     str_sub(1, -3) %>%
     {ifelse(str_detect(., "pv"), str_to_upper(.), str_to_title(.))}
 
-    
-    get_t_means <- function(x, return_test) {
-      if (missing(return_test)) {
-      return_test <- F
-      }
-      
-      tmp <- x %>%
-        group_by(veg_groups) %>% 
-        t.test(values ~ management, data = .)
-      means <- tmp$estimate %>% 
-        as.vector()
-      
-      if (return_test) {
-        return(tmp)
-      } else {
-        return(means)
-      }
-    }
     
   means <- df %>%
     group_by(veg_groups) %>%
@@ -102,27 +83,23 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
 
   ggplot(df, aes(y = values, x = date, colour = veg_groups, linetype = veg_groups)) +
     geom_line(linewidth = 1) +
-    # geom_smooth(data = df %>% filter(year(date) > 2008), method = lm, se = F) +
-    # geom_smooth(data = df %>% filter(year(date) <= 2008), method = lm, se = F) +
     geom_segment(data = means, aes(x = min(df$date), y = mean_ref, xend = as_date("2008-09-01"), yend = mean_ref, colour = NULL)) +
     geom_segment(data = means, aes(x = as_date("2009-02-01"), y = mean_eff, xend = max(df$date), yend = mean_eff, colour = NULL)) +
     annotate("rect", xmin = as_date("2008-09-01"), xmax = as_date("2009-02-01"), ymin = min(df$values), ymax = Inf,
              alpha = .1, fill = "black") +
-    annotate("rect", xmin = as_date("2009-02-01"), xmax = max(df$date), ymin = min(df$values), ymax = Inf,
-             alpha = .1, fill = "#8DA0CB") +
     annotate("text", x = labelx, y = labely,
              label = "bold('Bon Bon Destocked')",
-             hjust = 1, color = "#8DA0CB", parse = T,
+             hjust = 1, color = "grey30", parse = T,
              size = 10/.pt) +
     scale_y_continuous(limits = c(min(df$values), max(df$values)),
-                       breaks = seq(floor(min(df$values)), floor(max(df$values)), 0.5),
+                       breaks = seq(plyr::round_any(min(df$values), 0.5, floor), plyr::round_any(max(df$values), 0.5, f = ceiling), 0.5),
                        expand = c(0, 0)) +
     scale_x_date(limits = as_date(c(min(df$date), max(df$date))),
                breaks = "2 year", 
                date_labels = "%Y", 
                expand = c(0, 0)) +
     labs(x = "Year",
-         y = paste(cover_name, "Cover Difference (%)"),
+         y = paste("Persistent", cover_name, "Cover difference (% cover) "),
          colour = "Vegetation Type",
          linetype = "Vegetation Type") +
     theme_classic() +
@@ -134,7 +111,7 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
       legend.title = element_blank(),
       legend.text = element_text(face = "bold"),
       legend.key.width = unit(0.8, "cm"),
-      plot.margin = margin(r = 0.5, unit = "cm")
+      plot.margin = margin(t = 0.5, b = 0.2, r = 0.5, unit = "cm")
     ) +
     guides(colour = guide_legend(override.aes = list(linewidth = 1.5)))
 }
@@ -156,16 +133,11 @@ p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
        x = "Year") +
   theme_classic() +
   theme(
-    axis.title = element_text(face = "bold"),s
+    axis.title = element_text(face = "bold"),
     axis.text = element_text(size = 10)
   )
 
-pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2015", truncated = 2),labely = 1.1, legend_position = c(0.80, 0.11)) +
-  # geom_line(data = monthly_rain, aes(x = date, y = rainfall_anom/100, colour = NULL, linetype = NULL)) +
-  # scale_y_continuous(
-  #   name = "Fractional Cover (%)",
-  #   sec.axis = sec_axis(~.*100, name = "Monthly Rainfall (mm)")
-  #   ) +
+pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.1, legend_position = c(0.80, 0.11)) +
   scale_colour_manual(values = c("#66C2A5", "#66C2A5"))
 
 ggpubr::ggarrange(pv_eff +
@@ -181,7 +153,7 @@ ggsave("./figures/pv_05_effect.png",
        height = 12,
        units = "cm")
 
-npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2015", truncated = 2),labely = 1.5, legend_position = c(0.80, 0.11)) +
+npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.9, legend_position = c(0.80, 0.11)) +
   # geom_line(data = monthly_rain, aes(x = date, y = rainfall_anom/100, colour = NULL, linetype = NULL)) +
   # scale_y_continuous(
   #   name = "Fractional Cover (%)",
@@ -203,7 +175,7 @@ ggsave("./figures/npv_05_effect.png",
        height = 12,
        units = "cm")
 
-bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2015", truncated = 2),labely = 1.1, legend_position = c(0.18, 0.11)) +
+bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2014-09", truncated = 1),labely = 0.2, legend_position = c(0.18, 0.11)) +
   scale_colour_manual(values = c("#FFD92F", "#FFD92F"))
 
 ggpubr::ggarrange(bare_eff +

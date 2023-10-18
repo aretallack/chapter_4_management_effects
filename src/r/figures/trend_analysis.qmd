@@ -6,7 +6,7 @@ editor_options:
 ---
 
 ```{r}
-pacman::p_load(tidyverse, plyr, tidyterra, terra, data.table, mblm)
+pacman::p_load(tidyverse, plyr, tidyterra, sf, terra, mblm, ggpubr)
 
 raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", full.names = T))
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
@@ -93,25 +93,25 @@ calc_slopes <- function(x, percentile){
 }
 
 
-if (!file.exists("./figures/pv_slope.tif")) {
+if (!file.exists("./outputs/raster/pv_slope.tif")) {
   pv_slope <- calc_slopes(pv, 0.05)
-  writeRaster(pv_slope, "./figures/pv_slope.tif", overwrite = T)
+  writeRaster(pv_slope, "./outputs/raster/pv_slope.tif", overwrite = T)
 } else {
-  pv_slope <- rast("./figures/pv_slope.tif")
+  pv_slope <- rast("./outputs/raster/pv_slope.tif")
 }
 
-if (!file.exists("./figures/npv_slope.tif")) {
+if (!file.exists("./outputs/raster/npv_slope.tif")) {
   npv_slope <- calc_slopes(npv, 0.05)
-  writeRaster(npv_slope, "./figures/npv_slope.tif", overwrite = T)  
+  writeRaster(npv_slope, "./outputs/raster/npv_slope.tif", overwrite = T)  
 } else {
-  npv_slope <- rast("./figures/npv_slope.tif")
+  npv_slope <- rast("./outputs/raster/npv_slope.tif")
 }
 
-if (!file.exists("./figures/bare_slope.tif")) {
+if (!file.exists("./outputs/raster/bare_slope.tif")) {
   bare_slope <- calc_slopes(bare, 0.95)
-  writeRaster(bare_slope, "./figures/bare_slope.tif", overwrite = T)
+  writeRaster(bare_slope, "./outputs/raster/bare_slope.tif", overwrite = T)
 } else {
-  bare_slope <- rast("./figures/bare_slope.tif")
+  bare_slope <- rast("./outputs/raster/bare_slope.tif")
 }
 
 ```
@@ -137,11 +137,9 @@ names(bare_slope) <- "Bare (95th) Trend\n(2001 - 2023)"
 #                  stretch(npv_slope, minq = 0.005, maxq = 0.995, histeq = T), 
 #                  stretch(bare_slope, minq = 0.005, maxq = 0.995, histeq = T))
 
-names(slope_rasts) <- c("PV", "NPV", "Bare")
 pal <- RColorBrewer::brewer.pal(11, "PiYG")
 
 plot_slope <- function(x){
-  
   lims <- x %>% 
     as.vector() %>% 
     .[-which(is.na(.))] %>% 
@@ -158,26 +156,32 @@ plot_slope <- function(x){
     
   ggplot() +
     geom_spatraster(data = x) +
-    geom_sf(data = study_area, fill = "transparent", linewidth = 1) +
+    geom_sf(data = st_buffer(study_area[1], 500), fill = "transparent", linewidth = 1.5) +
+    geom_sf(data = study_area, fill = "transparent", linewidth = 1.5, colour = c("#FFFF73", "#73B2FF")) +
     
     scale_fill_whitebox_c(
       palette = "purple",
       limits = centred_lims,
       breaks = c(centred_lims[1], 0, centred_lims[2]),
+      labels = c("Cover Component                                     \nReducing                     ", "", "                                   Cover Component\n                      Increasing"),
       guide = guide_colorbar(
         title.position = "top",
-        title.hjust = 0.5
+        title.hjust = 1
         )
       ) +
     
-    labs(fill = "Slope",
+    labs(fill = "Cover Trend\n(2021 - 2023)",
          title = names(x)) +
     
     theme_classic() +
     
-    theme(legend.position = "bottom",
+    theme(legend.position = c(0.5, -0.2),
+          legend.title = element_blank(),
+          legend.text = element_text(vjust = 2.45, face = "bold"),
+          legend.background = element_rect(fill = "transparent"),
           plot.title = element_text(
-            hjust = 0.5, 
+            hjust = 0.5,
+            vjust = -2,
             face = "bold",
             size = unit(10, "cm")
             ),
@@ -187,15 +191,20 @@ plot_slope <- function(x){
           )
 }
 
-pv_slope_plot <- plot_slope(pv_slope)
-npv_slope_plot <- plot_slope(npv_slope)
-bare_slope_plot <- plot_slope(bare_slope)
+pv_slope_plot <- plot_slope(pv_slope) +
+  theme(plot.margin = unit(c(0, -2, -0.5, 0), "cm"))
+npv_slope_plot <- plot_slope(npv_slope) +
+  theme(plot.margin = unit(c(0, -2, -0.5, -2), "cm"))
+bare_slope_plot <- plot_slope(bare_slope) +
+  theme(plot.margin = unit(c(0, 0, -0.5, -2), "cm"))
 
 ggarrange(pv_slope_plot,
           npv_slope_plot,
           bare_slope_plot,
-          ncol = 3)
-
+          ncol = 3,
+          common.legend = T,
+          legend = "bottom") +
+  theme(plot.margin = margin(0,-1,-1,-1, "cm"))
 
 ggsave("./figures/spatial_trends.png",
        width = 16,
