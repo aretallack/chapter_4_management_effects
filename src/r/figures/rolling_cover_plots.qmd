@@ -98,9 +98,9 @@ ggplot(monthly_fc, aes(x = date)) +
   geom_ribbon(data = ribbon_data, aes(ymin = min, ymax = max, fill = cover_type), alpha = 0.2, show.legend = F) +
   annotate("rect", xmin = as_date("2008-01-01"), xmax = as_date("2008-04-01"), ymin = 0, ymax = 72,
            alpha = .1, fill = "black") +
-  annotate("text", x = as_date("2012-09-01"), y = 66,
-           label = "bold('Bon Bon Destocked')",
-           hjust = 1, color = "grey30", parse = T,
+  annotate("text", x = as_date("2008-06-01"), y = 66,
+           label = "bold('Bon Bon Destocked (2008)')",
+           hjust = 0, color = "grey30", parse = T,
            size = 8/.pt) +
   coord_cartesian(ylim = c(min(monthly_fc$cover), (max(monthly_fc$cover) + 2)),
                   xlim = c(as_date("2002-01-01"), as_date("2023-01-01"))) +

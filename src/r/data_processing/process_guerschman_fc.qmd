@@ -12,8 +12,10 @@ Takes input rasters - monthly fractional cover and
 ```{r}
 #| label: setup
 pacman::p_load(tidyverse, terra, sf) 
+
 studyExtent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
+
 # Study extent reprojected to modis sinusoidal
 studyExtent_modsin <- studyExtent %>% 
   st_transform("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs")
@@ -24,6 +26,7 @@ studyExtent_modsin <- studyExtent %>%
 ```{r Import Raster data}
 dataPath <- "E:/data/Landscape_Products/Vegetation_Products/GuerschmanFC/Monthly" %>% 
   list.files("*.nc", full.names = T)
+
 outputPath <- file.path("./outputs/raster/guerschman_fc_monthly")
  
 ####################

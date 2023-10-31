@@ -88,7 +88,7 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
     annotate("rect", xmin = as_date("2008-09-01"), xmax = as_date("2009-02-01"), ymin = min(df$values), ymax = Inf,
              alpha = .1, fill = "black") +
     annotate("text", x = labelx, y = labely,
-             label = "bold('Bon Bon Destocked')",
+             label = "bold('Bon Bon Destocked\n(2008)')",
              hjust = 1, color = "grey30", parse = T,
              size = 10/.pt) +
     scale_y_continuous(limits = c(min(df$values), max(df$values)),
@@ -99,7 +99,7 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
                date_labels = "%Y", 
                expand = c(0, 0)) +
     labs(x = "Year",
-         y = paste("Persistent", cover_name, "Cover difference (% cover) "),
+         y = paste("Persistent", cover_name, "Cover Difference (% cover) "),
          colour = "Vegetation Type",
          linetype = "Vegetation Type") +
     theme_classic() +
@@ -137,7 +137,7 @@ p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
     axis.text = element_text(size = 10)
   )
 
-pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.1, legend_position = c(0.80, 0.11)) +
+pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.05, legend_position = c(0.80, 0.11)) +
   scale_colour_manual(values = c("#66C2A5", "#66C2A5"))
 
 ggpubr::ggarrange(pv_eff +
@@ -153,7 +153,7 @@ ggsave("./figures/pv_05_effect.png",
        height = 12,
        units = "cm")
 
-npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.9, legend_position = c(0.80, 0.11)) +
+npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.75, legend_position = c(0.80, 0.11)) +
   # geom_line(data = monthly_rain, aes(x = date, y = rainfall_anom/100, colour = NULL, linetype = NULL)) +
   # scale_y_continuous(
   #   name = "Fractional Cover (%)",
@@ -222,19 +222,3 @@ ggplot(effects, aes(y = bare95_eff, x = year, colour = veg_groups)) +
 #        width = 10,
 #        height = 10 * 0.8)
 ```
-
-
-# Versus rainfall anom
-
-```{r}
-# rain_effect <- merge(monthly_rain, effects, by = "date")
-
-rain_effect <- merge(monthly_rain, effects, by = "date") %>% 
-  group_by(date) %>% 
-  summarise_all("mean")
-
-ggplot(rain_effect %>% filter(date > as_date("2011-01-01")), aes(x = date, y = rainfall_anom)) +
-  geom_line()
-```
-
-

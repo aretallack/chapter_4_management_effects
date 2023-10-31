@@ -56,9 +56,14 @@ mask <- (ibra_subregions + fences + water + nvis_groups + pastoral_landSystems)
 mask[mask < 1] <- 0
 mask[mask >= 1] <- 1
 
-names(mask) <- "mask"
+mask_nofence <- (ibra_subregions + water + nvis_groups + pastoral_landSystems)
+mask_nofence[mask_nofence < 1] <- 0
+mask_nofence[mask_nofence >= 1] <- 1 
+
+names(mask_nofence) <- "mask_nofence"
 
 writeRaster(mask, "./outputs/raster/mask.tif", overwrite = T)
+writeRaster(mask_nofence, "./outputs/raster/mask_nofence.tif", overwrite = T)
 
 ```
 
