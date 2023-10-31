@@ -1,5 +1,5 @@
 ---
-title: "test"
+title: "trend analysis"
 format: html
 editor_options: 
   chunk_output_type: console
@@ -12,6 +12,14 @@ raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", ful
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
 
+ibra_sr <- read_sf("./data/vector/ibra_subregions.gpkg") %>% 
+  select(SUB_NAME_7) %>% 
+  st_intersection(st_geometry(study_area)[1])
+
+mask <- rast("./outputs/raster/mask_nofence.tif") %>% 
+  mask(vect(study_area)) %>% 
+  crop(vect(study_area))
+
 pv <- raster[[str_detect(names(raster), "_pv*")]]
 npv <- raster[[str_detect(names(raster), "_npv*")]]
 bare <- raster[[str_detect(names(raster), "_bare*")]]
@@ -19,6 +27,7 @@ bare <- raster[[str_detect(names(raster), "_bare*")]]
 
 
 ```{r}
+
 calc_slopes <- function(x, percentile){
   
   # x <- x %>% 
@@ -31,23 +40,6 @@ calc_slopes <- function(x, percentile){
     as.data.frame(cells = T, xy = T) %>% 
     pivot_longer(-c(1:3))
   
-  # Function for linear regression.
-  # Applied to each cell later
-  get_slope <- function(x) {
-    # lm(value ~  seq_len(length(x)), x) %>% 
-    #             .$coefficient %>% 
-    #             .[2] %>% return()
-
-  v <-  x %>%
-    .$value
-  t <- seq_len(length(v))
-  
-  suppressWarnings(mblm(v ~ t, repeated = T)) %>%
-    summary() %>% 
-    .$coefficients %>% 
-    .[2,1] %>% return()
-  }
-
   split_df <- df %>% 
     group_by(cell) %>% 
     group_split() %>%
@@ -69,6 +61,23 @@ calc_slopes <- function(x, percentile){
   parallel::clusterCall(cl, function() library(tidyverse))
   parallel::clusterCall(cl, function() library(mblm))
   ####################
+  
+  # Function for linear regression.
+  # Applied to each cell later
+  get_slope <- function(x) {
+    # lm(value ~  seq_len(length(x)), x) %>% 
+    #             .$coefficient %>% 
+    #             .[2] %>% return()
+
+  v <-  x %>%
+    .$value
+  t <- seq_len(length(v))
+  
+  suppressWarnings(mblm(v ~ t, repeated = T)) %>%
+    summary() %>% 
+    .$coefficients %>% 
+    .[2,1] %>% return()
+  }
   
   # Get slopes for each cell and add to dataframe
   slopes <- parallel::parLapply(cl, X = split_df, get_slope) %>% 
@@ -92,6 +101,8 @@ calc_slopes <- function(x, percentile){
   return(out_rast)
 }
 
+
+# load files if exists, otherwise calc slopes with above function and export
 
 if (!file.exists("./outputs/raster/pv_slope.tif")) {
   pv_slope <- calc_slopes(pv, 0.05)
@@ -122,15 +133,15 @@ if (!file.exists("./outputs/raster/bare_slope.tif")) {
 pv_slope <- pv_slope %>% 
   mask(vect(study_area)) %>% 
   crop(vect(study_area))
-names(pv_slope) <- "PV (5th) Trend\n(2001 - 2023)"
+names(pv_slope) <- "Persistent PV Trend\n(monthly change)"
 npv_slope <- npv_slope %>% 
   mask(vect(study_area)) %>% 
   crop(vect(study_area))
-names(npv_slope) <- "NPV (5th) Trend\n(2001 - 2023)"
+names(npv_slope) <- "Persistent NPV Trend\n(monthly change)"
 bare_slope <- bare_slope %>% 
   mask(vect(study_area)) %>% 
   crop(vect(study_area))
-names(bare_slope) <- "Bare (95th) Trend\n(2001 - 2023)"
+names(bare_slope) <- "Persistent Bare Trend\n(monthly change)"
 
 
 # slope_rasts <- c(stretch(pv_slope, minv = -0.1, maxq = 0.995, histeq = T), 
@@ -156,28 +167,30 @@ plot_slope <- function(x){
     
   ggplot() +
     geom_spatraster(data = x) +
-    geom_sf(data = st_buffer(study_area[1], 500), fill = "transparent", linewidth = 1.5) +
-    geom_sf(data = study_area, fill = "transparent", linewidth = 1.5, colour = c("#FFFF73", "#73B2FF")) +
-    
+    geom_sf(data = ibra_sr, fill = "transparent", colour = "darkblue", linewidth = 0.5) +
+    # geom_sf(data = st_buffer(study_area[1], 500), fill = "transparent", linewidth = 1.5) +
+    # geom_sf(data = study_area, fill = "transparent", linewidth = 1.5, colour = c("#FFFF73", "#73B2FF")) +
+
     scale_fill_whitebox_c(
       palette = "purple",
       limits = centred_lims,
       breaks = c(centred_lims[1], 0, centred_lims[2]),
-      labels = c("Cover Component                                     \nReducing                     ", "", "                                   Cover Component\n                      Increasing"),
+      labels = c(centred_lims[1], 0, centred_lims[2]),
+      # labels = c("Cover Component                                     \nReducing                     ", "", "                                   Cover Component\n                      Increasing"),
       guide = guide_colorbar(
         title.position = "top",
         title.hjust = 1
         )
       ) +
     
-    labs(fill = "Cover Trend\n(2021 - 2023)",
+    labs(fill = "cover change\n per month",
          title = names(x)) +
     
     theme_classic() +
     
-    theme(legend.position = c(0.5, -0.2),
+    theme(legend.position = c(0.5, 0.2),
           legend.title = element_blank(),
-          legend.text = element_text(vjust = 2.45, face = "bold"),
+          legend.text = element_text(size = unit(8, "cm"), vjust = 2.45, face = "bold"),
           legend.background = element_rect(fill = "transparent"),
           plot.title = element_text(
             hjust = 0.5,
@@ -185,26 +198,81 @@ plot_slope <- function(x){
             face = "bold",
             size = unit(10, "cm")
             ),
+          plot.margin = margin(0,0,-1,0, "cm"),
+          legend.box.margin = margin(-1,0,0,0, "cm"),
           axis.line = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank()
           )
 }
 
-pv_slope_plot <- plot_slope(pv_slope) +
-  theme(plot.margin = unit(c(0, -2, -0.5, 0), "cm"))
-npv_slope_plot <- plot_slope(npv_slope) +
-  theme(plot.margin = unit(c(0, -2, -0.5, -2), "cm"))
-bare_slope_plot <- plot_slope(bare_slope) +
-  theme(plot.margin = unit(c(0, 0, -0.5, -2), "cm"))
 
-ggarrange(pv_slope_plot,
-          npv_slope_plot,
-          bare_slope_plot,
+
+
+
+pv_before <-  pv %>% 
+  .[[year(time(.)) %in% c(2001:2005)]] %>% 
+  mean()
+pv_after <-  pv %>% 
+  .[[year(time(.)) %in% c(2018:2023)]] %>% 
+  mean()
+pv_diff <- (pv_after - pv_before) %>% 
+  crop(study_area) %>% 
+  mask(vect(study_area))
+
+
+npv_before <-  npv %>% 
+  .[[year(time(.)) %in% c(2001:2005)]] %>% 
+  mean()
+npv_after <-  npv %>% 
+  .[[year(time(.)) %in% c(2018:2023)]] %>% 
+  mean()
+npv_diff <- (npv_after - npv_before) %>% 
+  crop(study_area) %>% 
+  mask(vect(study_area))
+
+bare_before <-  bare %>% 
+  .[[year(time(.)) %in% c(2001:2005)]] %>% 
+  mean()
+bare_after <-  bare %>% 
+  .[[year(time(.)) %in% c(2018:2023)]] %>% 
+  mean()
+bare_diff <- (bare_after - bare_before) %>% 
+  crop(study_area) %>% 
+  mask(vect(study_area))
+
+
+
+pv_diff_plot <- plot_slope(mask(pv_diff, mask, maskvalue = 1)) +
+  theme(plot.margin = unit(c(0, -2, -0.5, 0), "cm"))
+npv_diff_plot <- plot_slope(mask(npv_diff, mask, maskvalue = 1)) +
+  theme(plot.margin = unit(c(0, -2, -0.5, 0), "cm"))
+bare_diff_plot <- plot_slope(mask(bare_diff, mask, maskvalue = 1)) +
+  theme(plot.margin = unit(c(0, -2, -0.5, 0), "cm"))
+
+
+# pv_slope_plot <- plot_slope(mask(pv_slope, mask, maskvalues = 1)) +
+#   theme(plot.margin = unit(c(0, -2, -0.5, 0), "cm"))
+# npv_slope_plot <- plot_slope(mask(npv_slope, mask, maskvalues = 1)) +
+#   theme(plot.margin = unit(c(0, -2, -0.5, -2), "cm"))
+# bare_slope_plot <- plot_slope(mask(bare_slope, mask, maskvalues = 1)) +
+#   theme(plot.margin = unit(c(0, 0, -0.5, -2), "cm"))
+
+# ggarrange(pv_slope_plot,
+#           npv_slope_plot,
+#           bare_slope_plot,
+#           ncol = 3,
+#           common.legend = F,
+#           legend = "bottom") +
+#   theme(plot.margin = margin(0,-1,0.5,-1, "cm"))
+
+ggarrange(pv_diff_plot,
+          npv_diff_plot,
+          bare_diff_plot,
           ncol = 3,
-          common.legend = T,
+          common.legend = F,
           legend = "bottom") +
-  theme(plot.margin = margin(0,-1,-1,-1, "cm"))
+  theme(plot.margin = margin(0,-1,0.5,-1, "cm"))
 
 ggsave("./figures/spatial_trends.png",
        width = 16,
