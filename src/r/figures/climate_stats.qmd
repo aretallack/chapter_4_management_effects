@@ -15,7 +15,8 @@ pacman::p_load(tidyverse, terra, lubridate)
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg")
 
 rainfall <- rast("E:/data/climate_data/rainfall/agcd/agcd_v2-0-1_precip_total_r001_monthly_1900_2022.nc")
-tmax <- rast("E:/data/climate_data/temperature/agcd_tmax_monthly_1971_2022.nc")
+tmax <- rast("E:/data/climate_data/temperature/agcd_tmax_monthly_1971_2022.nc") %>% 
+  project("epsg:28353")
 
 ```
 

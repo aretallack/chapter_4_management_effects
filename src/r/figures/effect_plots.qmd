@@ -192,33 +192,3 @@ ggsave("./figures/bare_95_effect.png",
        height = 12,
        units = "cm")
 ```
-
-# NPV
-
-```{r}
-data_ibra <- dat[,.(eff = (mean(npv_05[station == "Bon Bon"], na.rm = T) - mean(npv_05[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
-data_all <- dat[,.(eff = (mean(npv_05[station == "Bon Bon"], na.rm = T) - mean(npv_05[station != "Bon Bon"], na.rm = T))) , by = c("year")]
-
-npv_05_ibra <- plot_effects(data_ibra, data_all) +
-  labs(title = "NPV (5th Percentile)")
-
-# ggsave("./figures/npv_05_ibra.png",
-#        npv_05_ibra, 
-#        width = 10,
-#        height = 10 * 0.8)
-```
-
-# Bare
-
-```{r}
-data_ibra <- dat[,.(eff = (mean(bare_95[station == "Bon Bon"], na.rm = T) - mean(bare_95[station != "Bon Bon"], na.rm = T))) , by = c("year", "ibra_sr")]
-data_all <- dat[,.(eff = (mean(bare_95[station == "Bon Bon"], na.rm = T) - mean(bare_95[station != "Bon Bon"], na.rm = T))) , by = c("year")]
-
-ggplot(effects, aes(y = bare95_eff, x = year, colour = veg_groups)) +
-  geom_line()
-
-# ggsave("./figures/npv_05_ibra.png",
-#        npv_05_ibra, 
-#        width = 10,
-#        height = 10 * 0.8)
-```

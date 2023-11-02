@@ -361,7 +361,9 @@ gc(full = T, reset = T)
 # Mask
 
 ```{r}
-mask <- rast("./outputs/raster/mask.tif") %>%
+mask <- rast("./outputs/raster/mask.tif")
+names(mask) <- "mask"
+mask <- mask %>% 
   as.data.frame(xy = T, cells = T)
 setDT(mask)
 setkeyv(mask, c("x", "y"))

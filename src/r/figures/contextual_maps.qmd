@@ -7,40 +7,52 @@ editor_options:
 ```{r}
 pacman::p_load(tidyverse, plyr, tidyterra, sf, terra, mblm, ggpubr)
 
-raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", full.names = T))
+raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", full.names = T)) %>% 
+  .[[1]]
+raster[!is.na(raster)] <- NA
+
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
 
-agcd_rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc") %>% 
-  .[[time(.) > ymd("2000-01-01")]]
+surrounding_area <- st_bbox(st_buffer(study_area, 9000)) %>% 
+  st_as_sfc() %>% 
+  st_difference(., study_area[1]) %>% 
+  st_difference()
 
-summer_months <- which(month(time(agcd_rain)) %in% c(12, 1, 2))
-winter_months <- which(month(time(agcd_rain)) %in% c(6, 7, 8))
+chirps_rain <- rast("./outputs/raster/chirps_precipitation/CHIRPS2.0_global_monthly_EW_data_20000101_20230301.nc")
 
-summer_rain <- agcd_rain[[summer_months]] %>% 
-  mean() %>% 
-  mask(vect(study_area))
+mean_rain <- chirps_rain %>% 
+  mean(na.rm = F) %>% 
+  mask(vect(st_buffer(study_area, 5000))) %>% 
+  crop(vect(st_buffer(study_area, 5000))) %>% 
+  project(crs(raster))
 
-winter_rain <- agcd_rain[[winter_months]] %>% 
-  mean() %>% 
-  mask(vect(study_area))
+tmax <- rast("E:/data/climate_data/temperature/agcd/agcd_v1-0-1_tmax_mean_r005_monthly_1910_2022.nc") %>%
+  .[[time(.) >= ymd("2000-01-01")]] %>% 
+  crop(vect(st_buffer(st_transform(study_area, crs(.)), 5000))) %>% 
+  mean(na.rm = F) %>%
+  mask(vect(st_buffer(st_transform(study_area, crs(.)), 5000)))
 
-# tmax <- rast("E:/data/climate_data/temperature/agcd_tmax_monthly_1971_2022.nc") %>% 
-#   .[[time(.) > ymd("2000-01-01")]] %>% 
-#   project(summer_rain) %>%
-#   mean() %>%
-#   mask(vect(study_area))
-
+tmin <- rast("E:/data/climate_data/temperature/agcd/agcd_v1-0-1_tmin_mean_r005_monthly_1910_2022.nc") %>%
+  .[[time(.) >= ymd("2000-01-01")]] %>% 
+  crop(vect(st_buffer(st_transform(study_area, crs(.)), 5000))) %>% 
+  mean(na.rm = F) %>%
+  mask(vect(st_buffer(st_transform(study_area, crs(.)), 5000)))
+tmean <- mean(tmax, tmin) %>% 
+  project(crs(raster))
 
 ibra_sr <- read_sf("./data/vector/ibra_subregions.gpkg") %>% 
-  st_intersection(st_geometry(study_area)[1]) %>% 
+  st_intersection(st_geometry(study_area)[1]) %>%
+  st_crop(study_area) %>% 
   select(SUB_NAME_7) %>% 
   filter(SUB_NAME_7 != "Gawler Lakes") %>% 
-  rasterize(summer_rain, field = "SUB_NAME_7")
- 
+  rasterize(raster, field = "SUB_NAME_7")
 
 nvis <- rast("E:/data/Basedata/Environmental/NVIS/FGDB_NVIS6_0_AUST_EXT_MVG/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>% 
-  project(tmax)
+  crop(st_transform(study_area, crs(.))) %>%
+  project(raster) %>% 
+  mask(vect(st_transform(study_area, crs(.))))
+
 nvis <- droplevels(nvis)
 nvis[nvis %in% c(6, 13, 16)] <- 13
 nvis[!nvis %in% c(22, 13)] <-  NA
@@ -50,9 +62,6 @@ level_names <- levels(nvis)[[1]]
 level_names[,2] <- c("Acacia Open Woodlands", "Chenopod Shrublands")
 
 levels(nvis) <- level_names
-
-nvis <- nvis %>% 
-  mask(vect(study_area))
 ```
 
 
@@ -62,70 +71,72 @@ nvis <- nvis %>%
 plot_rasters <- function(raster, title) {
   ggplot() +
     geom_spatraster(data = raster, na.rm = T) +
-    geom_sf(data = st_buffer(study_area[1], 500), fill = "transparent", linewidth = 1.5) +
-    geom_sf(data = study_area, fill = "transparent", linewidth = 1.5, colour = c("#FFFF73", "#73B2FF")) +
+    geom_sf(data = surrounding_area, fill = "white", colour = "transparent") +
+    geom_sf(data = st_buffer(study_area[1], 200), fill = "transparent", linewidth = 1) +
+    geom_sf(data = study_area, fill = "transparent", linewidth = c(0.8, 0.5), colour = c(alpha("#FFFF73", 1), "#73B2FF"), linetype = c("solid", "solid")) +
+    
     labs(title = title,
          fill = title) +
     theme_classic() +
     theme(legend.position = "bottom",
           legend.margin = margin(-0.8,-0.8,-0.8,-0.8, "cm"),
-          legend.title = element_blank(),
           legend.key = element_rect(colour = "black"),
           legend.text = element_text(size = unit(8, "cm")),
+          legend.title = element_text(size = unit(6, "cm"), face = "bold", hjust = 0.5, vjust = -0.5),
+          legend.spacing.y = unit(0.2, "cm"),
           axis.text = element_blank(),
           axis.line = element_blank(),
           axis.ticks = element_blank(),
           plot.title = element_text(size = unit(10, "cm"),
                                     face = "bold",
                                     hjust = 0.5,
-                                    vjust = -2),
-          plot.margin = margin(0,0,1,0, "cm")
+                                    vjust = -10),
+          plot.margin = margin(-0.6,-0.8,1,-0.8, "cm")
     )
   }
 
-summer_rain_plot <- plot_rasters(summer_rain, "Mean Summer Monthly\nRainfall (mm)") +
+rain_plot <- plot_rasters(mean_rain, "Mean Monthly\nRainfall") +
+  labs(fill = "Rainfall (mm)") +
   scale_fill_viridis_c(
     option = "viridis",
     direction = -1,
     na.value = NA,
-    limits = c(round_any(minmax(summer_rain)[1], -1), 
-               round_any(minmax(summer_rain)[2], 1) + 0.1),
-    breaks = seq(round_any(minmax(summer_rain)[1], -1), 
-                 round_any(minmax(summer_rain)[2], 1),
-                 1),
-    guide = guide_colorbar(frame.colour = "black",
-                           ticks.colour = "black")
+    limits = c(round_any(minmax(mean_rain)[1], 1),
+                 round_any(minmax(mean_rain)[2], 1) + 0.1),
+    breaks = c(round_any(minmax(mean_rain)[1], 1),
+               round_any(minmax(mean_rain)[2], 1)),
+    guide = guide_colorbar(barwidth = unit(2, "cm"),
+                           barheight = unit(0.5, "cm"),
+                           frame.colour = "black",
+                           ticks.colour = "black",
+                           title.position = "top")
     )
-winter_rain_plot <- plot_rasters(winter_rain, "Mean Winter Monthly\nRainfall (mm)") +
-  scale_fill_viridis_c(
-    option = "viridis",
-    direction = -1,
-    na.value = NA,
-    limits = c(round_any(minmax(winter_rain)[1], -1) - 0.1,
-                 round_any(minmax(winter_rain)[2], 1) + 0.1),
-    breaks = seq(round_any(minmax(winter_rain)[1], -1),
-                 round_any(minmax(winter_rain)[2], 1)),
-    guide = guide_colorbar(frame.colour = "black",
-                           ticks.colour = "black")
-    )
-tmax_plot <- plot_rasters(tmax, "Mean Maximum Daily\nTemperature (°C)") +
+
+tmean_plot <- plot_rasters(tmean, "Mean\nTemperature") +
+  labs(fill = "Temperature (°C)") +
   scale_fill_viridis_c(
     option = "plasma",
     direction = 1,
     na.value = NA,
-    limits = c(plyr::round_any(minmax(tmax)[1], -0.1),
-                 plyr::round_any(minmax(tmax)[2], -0.1)),
-    breaks = seq(plyr::round_any(minmax(tmax)[1], -0.1),
-                 plyr::round_any(minmax(tmax)[2], -0.1),
-                 0.2) ,
-    guide = guide_colorbar(frame.colour = "black",
-                           ticks.colour = "black")
+    limits = c(plyr::round_any(minmax(tmean)[1], 0.1, floor),
+                 plyr::round_any(minmax(tmean)[2], 0.1, ceiling)),
+    breaks = c(plyr::round_any(minmax(tmean)[1], 0.1, floor),
+                 plyr::round_any(minmax(tmean)[2], 0.1, ceiling)) ,
+    guide = guide_colorbar(barwidth = unit(2, "cm"),
+                           barheight = unit(0.5, "cm"),
+                           frame.colour = "black",
+                           ticks.colour = "black",
+                           title.position = "top")
     )
 
-ibra_plot <- plot_rasters(ibra_sr, "IBRA Subregions") +  
+ibra_plot <- plot_rasters(ibra_sr, "IBRA\nSubregions") +
+  geom_sf(data = read_sf("./data/vector/ibra_subregions.gpkg") %>%
+            st_cast("MULTILINESTRING") %>% 
+            st_crop(st_buffer(study_area, -1800)) %>% 
+            st_intersection(st_geometry(study_area)[1]), colour = "grey30", fill = "transparent") +
   theme(legend.direction = "vertical",
         legend.position = c(0.5, 0),
-        plot.margin = margin(0,0,0.85,0, "cm"),
+        legend.title = element_blank(),
         legend.key = element_rect(colour = "black"),
         legend.key.height = unit(0.3, "cm")) +
   scale_fill_manual(values = RColorBrewer::brewer.pal(8, "Set2")[1:3],
@@ -134,15 +145,15 @@ ibra_plot <- plot_rasters(ibra_sr, "IBRA Subregions") +
 nvis_plot <- plot_rasters(nvis, "Vegetation Groups\n(NVIS)") +
   theme(legend.direction = "vertical",
         legend.position = c(0.5, 0),
-        plot.margin = margin(0,0,0.85,0, "cm"),
+        legend.title = element_blank(),
         legend.key = element_rect(colour = "black"),
         legend.key.height = unit(0.3, "cm")) +
   scale_fill_manual(values = c("steelblue", "pink"),
                     labels = c("Acacia Open Woodland", "Chenopod Shrubland"),
                     na.translate = FALSE)
 
-ggpubr::ggarrange(summer_rain_plot,
-                  winter_rain_plot,
+ggpubr::ggarrange(rain_plot,
+                  tmean_plot,
                   ibra_plot,
                   nvis_plot,
                   ncol = 4)
