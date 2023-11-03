@@ -48,6 +48,8 @@ ibra_sr <- read_sf("./data/vector/ibra_subregions.gpkg") %>%
   filter(SUB_NAME_7 != "Gawler Lakes") %>% 
   rasterize(raster, field = "SUB_NAME_7")
 
+levels(ibra_sr) <- levels(ibra_sr)[[1]][c(1,3,2),] 
+
 nvis <- rast("E:/data/Basedata/Environmental/NVIS/FGDB_NVIS6_0_AUST_EXT_MVG/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>% 
   crop(st_transform(study_area, crs(.))) %>%
   project(raster) %>% 
@@ -59,9 +61,9 @@ nvis[!nvis %in% c(22, 13)] <-  NA
 nvis <- droplevels(nvis)
 
 level_names <- levels(nvis)[[1]]
-level_names[,2] <- c("Acacia Open Woodlands", "Chenopod Shrublands")
+level_names[,2] <- c("Chenopod Shrublands", "Acacia Open Woodlands")
+levels(nvis) <- level_names[c(2,1), ]
 
-levels(nvis) <- level_names
 ```
 
 
@@ -83,7 +85,7 @@ plot_rasters <- function(raster, title) {
           legend.key = element_rect(colour = "black"),
           legend.text = element_text(size = unit(8, "cm")),
           legend.title = element_text(size = unit(6, "cm"), face = "bold", hjust = 0.5, vjust = -0.5),
-          legend.spacing.y = unit(0.2, "cm"),
+          legend.spacing.y = unit(0.3, "cm"),
           axis.text = element_blank(),
           axis.line = element_blank(),
           axis.ticks = element_blank(),
@@ -91,11 +93,13 @@ plot_rasters <- function(raster, title) {
                                     face = "bold",
                                     hjust = 0.5,
                                     vjust = -10),
-          plot.margin = margin(-0.6,-0.8,1,-0.8, "cm")
+          plot.margin = margin(-0.6,-0.8,0.8,-0.8, "cm")
     )
   }
 
 rain_plot <- plot_rasters(mean_rain, "Mean Monthly\nRainfall") +
+  theme(legend.spacing.y = unit(0.15, "cm")
+        ) +
   labs(fill = "Rainfall (mm)") +
   scale_fill_viridis_c(
     option = "viridis",
@@ -114,6 +118,8 @@ rain_plot <- plot_rasters(mean_rain, "Mean Monthly\nRainfall") +
 
 tmean_plot <- plot_rasters(tmean, "Mean\nTemperature") +
   labs(fill = "Temperature (°C)") +
+  theme(legend.spacing.y = unit(0.15, "cm")
+        ) +
   scale_fill_viridis_c(
     option = "plasma",
     direction = 1,
@@ -149,7 +155,7 @@ nvis_plot <- plot_rasters(nvis, "Vegetation Groups\n(NVIS)") +
         legend.key = element_rect(colour = "black"),
         legend.key.height = unit(0.3, "cm")) +
   scale_fill_manual(values = c("steelblue", "pink"),
-                    labels = c("Acacia Open Woodland", "Chenopod Shrubland"),
+                    labels = c("Chenopod Shrubland", "Acacia Open Woodland"),
                     na.translate = FALSE)
 
 ggpubr::ggarrange(rain_plot,

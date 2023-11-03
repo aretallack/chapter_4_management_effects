@@ -83,9 +83,9 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
 
   ggplot(df, aes(y = values, x = date, colour = veg_groups, linetype = veg_groups)) +
     geom_line(linewidth = 1) +
-    geom_segment(data = means, aes(x = min(df$date), y = mean_ref, xend = as_date("2008-09-01"), yend = mean_ref, colour = NULL)) +
-    geom_segment(data = means, aes(x = as_date("2009-02-01"), y = mean_eff, xend = max(df$date), yend = mean_eff, colour = NULL)) +
-    annotate("rect", xmin = as_date("2008-09-01"), xmax = as_date("2009-02-01"), ymin = min(df$values), ymax = Inf,
+    geom_segment(data = means, aes(x = min(df$date), y = mean_ref, xend = as_date("2008-04-01"), yend = mean_ref, colour = NULL)) +
+    geom_segment(data = means, aes(x = as_date("2008-08-01"), y = mean_eff, xend = max(df$date), yend = mean_eff, colour = NULL)) +
+    annotate("rect", xmin = as_date("2008-04-01"), xmax = as_date("2008-08-01"), ymin = min(df$values), ymax = Inf,
              alpha = .1, fill = "black") +
     annotate("text", x = labelx, y = labely,
              label = "bold('Bon Bon Destocked\n(2008)')",
@@ -137,7 +137,7 @@ p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
     axis.text = element_text(size = 10)
   )
 
-pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.05, legend_position = c(0.80, 0.11)) +
+pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2014-06", truncated = 1),labely = 1.05, legend_position = c(0.80, 0.11)) +
   scale_colour_manual(values = c("#66C2A5", "#66C2A5"))
 
 ggpubr::ggarrange(pv_eff +
@@ -153,7 +153,7 @@ ggsave("./figures/pv_05_effect.png",
        height = 12,
        units = "cm")
 
-npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2014-09", truncated = 1),labely = 1.75, legend_position = c(0.80, 0.11)) +
+npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2014-06", truncated = 1),labely = 1.75, legend_position = c(0.80, 0.11)) +
   # geom_line(data = monthly_rain, aes(x = date, y = rainfall_anom/100, colour = NULL, linetype = NULL)) +
   # scale_y_continuous(
   #   name = "Fractional Cover (%)",
@@ -175,7 +175,7 @@ ggsave("./figures/npv_05_effect.png",
        height = 12,
        units = "cm")
 
-bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2014-09", truncated = 1),labely = 0.2, legend_position = c(0.18, 0.11)) +
+bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2014-06", truncated = 1),labely = 0.2, legend_position = c(0.18, 0.11)) +
   scale_colour_manual(values = c("#FFD92F", "#FFD92F"))
 
 ggpubr::ggarrange(bare_eff +

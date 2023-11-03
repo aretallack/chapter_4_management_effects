@@ -96,6 +96,16 @@ names(bare_diff) <- "Persistent Bare"
 
 ```{r}
 
+coords <- tibble(x = 6630017.77,
+                 y = 536692.21)
+
+extract(npv_05, coords) %>% 
+  pivot_longer(-1) %>%
+  add_column(time = 1:nrow(.)) %>%
+  ggplot(aes(x = time, y = value)) +
+  geom_line()
+
+
 pal <- RColorBrewer::brewer.pal(11, "PiYG")
 
 
