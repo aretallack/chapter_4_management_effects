@@ -15,5 +15,6 @@ data/**
 !data/raster
 src/arcgis
 src/qgis
+src/old
 doc
 .tmp.driveupload/
