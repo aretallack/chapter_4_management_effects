@@ -23,18 +23,6 @@ stations <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
 write_sf(stations, "./outputs/vector/pastoral_stations.gpkg")
 ```
 
-# Paddocks
-
-```{r}
-paddocks <- read_sf("./data/vector/pastoral_paddocks.gpkg") %>% 
-  .[-which(st_is_empty(.)),] %>% 
-  vect() %>%
-  crop(study_extent) %>%
-  st_as_sf()
-
-write_sf(paddocks, "./outputs/vector/pastoral_paddocks.gpkg")
-```
-
 # IBRA Regions
 
 ```{r}
