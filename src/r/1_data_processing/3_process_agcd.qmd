@@ -45,7 +45,7 @@ time(rasters) <- as_date(dates)
 
 # Export rasters
 
-```{r eval = F}
+```{r}
 start_date <- time(rasters)[1] %>% 
   str_replace_all("-", "")
 end_date <- time(rasters)[length(time(rasters))] %>% 
