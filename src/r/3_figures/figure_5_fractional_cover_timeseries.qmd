@@ -12,9 +12,9 @@ pacman::p_load(tidyverse, arrow, terra, sf, data.table, latticeExtra)
 # BB + surrounding. Min / Max values of cover types per pixel per year.
 dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
   mutate(cyear = year - 2008, .after = 2)
-dat_2 <- read_parquet("./outputs/tables/bonbon.parquet")
+dat_2 <- read_parquet("./outputs/tables/full_dataframe.parquet")
 
-study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+study_area <- read_sf("./outputs/vector/bonbon_boundary_buffer.gpkg") %>% 
   st_transform("EPSG:28353")
 
 rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc") %>% 
