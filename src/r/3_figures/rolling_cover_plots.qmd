@@ -90,27 +90,26 @@ cover_rain <- monthly_fc %>%
   merge(monthly_rain, by = "date", all.x = F) %>% 
   mutate(rainfall_anom = rainfall - mean(rainfall, na.rm = T))
 
-ggplot(cover_rain, aes(x = rainfall, y = difference, colour = cover_type)) +
+ggplot(cover_rain, aes(x = rainfall_anom, y = difference, colour = cover_type)) +
   geom_point() +
   geom_smooth(method = "lm") +
   theme_classic()
 
 pv_cor <- cover_rain %>%
-  filter(cover_type == "pv_12mo")
-pv_cor <- cor(pv_cor$difference, pv_cor$rainfall)
+  filter(cover_type == "pv_12mo") %>% 
+  {cor(.$difference, .$rainfall_anom)}
 
 npv_cor <- cover_rain %>%
-  filter(cover_type == "npv_12mo")
-npv_cor <- cor(npv_cor$difference, npv_cor$rainfall)
+  filter(cover_type == "npv_12mo") %>% 
+  {cor(.$difference, .$rainfall)}
 
 bare_cor <- cover_rain %>%
-  filter(cover_type == "npv_12mo")
-bare_cor <- cor(bare_cor$difference, bare_cor$rainfall)
+  filter(cover_type == "bare_12mo") %>% 
+  {cor(.$difference, .$rainfall)}
 
-cat("PV correlation = ", pv_cor,"\n")
-cat("NPV correlation = ", npv_cor,"\n")
-cat("bare correlation = ", bare_cor,"\n")
-
+cat(" PV correlation = ", pv_cor,"\n",
+    "NPV correlation = ", npv_cor,"\n",
+    "bare correlation = ", bare_cor)
 ```
 
 

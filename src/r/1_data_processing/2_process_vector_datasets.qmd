@@ -78,26 +78,6 @@ fences <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
 writeVector(fences, "./outputs/vector/fences.gpkg", overwrite = T)
 ```
 
-
-# Dog Fence
-
-```{r}
-dog_fence <- read_sf("./data/vector/dog_fence.gpkg") %>% 
-  st_intersection(study_area) %>% 
-  as_tibble() %>% 
-  add_column(area = st_area(.$geom),
-             inside = as.numeric(0)) %>% 
-  arrange(area)
-
-dog_fence <- rbind(dog_fence$geom[1:5] %>%
-                     st_union() %>%
-                     as_tibble(),
-                   dog_fence$geom[6] %>%
-                     add_column(inside = c(0, 1)) %>%
-                     st_as_sf())
-
-write_sf(dog_fence, "./outputs/vector/dog_fence.gpkg")
-```
 # Water
 Water polygons, used to mask pixels to exclude
 
