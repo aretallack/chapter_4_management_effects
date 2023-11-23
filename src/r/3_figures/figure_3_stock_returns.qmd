@@ -99,7 +99,7 @@ ggpubr::ggarrange(plot_stocking +
                   heights = c(1, 0.5),
                   align = "v")
 
-ggsave("./figures/figure_2_stock_returns.png",
+ggsave("./figures/figure_3_stock_returns.png",
        width = 16,
        height = 8,
        units = "cm")

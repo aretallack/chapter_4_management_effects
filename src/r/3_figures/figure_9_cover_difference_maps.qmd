@@ -224,7 +224,7 @@ ggarrange(pv_diff_plot,
           legend = "bottom") +
   theme(plot.margin = margin(0,0,0.5,0, "cm"))
 
-ggsave("./figures/figure_8_20year_differences.png",
+ggsave("./figures/figure_9_20year_differences.png",
        width = 16,
        height = 10,
        dpi = 300,

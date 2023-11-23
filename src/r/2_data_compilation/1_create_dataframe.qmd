@@ -302,7 +302,7 @@ df <- df %>%
   filter(mask != 1)
 
 df <- df %>%
-  select(-mask)
+  select(-mask, -fence, -water)
 ```
 
 ```{r}
@@ -313,7 +313,7 @@ df <- df %>%
 
 
 ```{r}
-names(df) <- c("x", "y", "cell", "date", "year", "pv", "npv", "bare", "station", "ibra_subregion", "land_system", "land_system_id", "nvis_group", "study_zone", "fence_buffer", "water")
+names(df) <- c("x", "y", "cell", "date", "year", "pv", "npv", "bare", "station", "ibra_subregion", "land_system", "land_system_id", "nvis_group", "study_zone")
 ```
 
 
@@ -322,8 +322,8 @@ names(df) <- c("x", "y", "cell", "date", "year", "pv", "npv", "bare", "station",
 ```{r}
 arrow::write_parquet(df, file.path(outputFolder, "full_dataframe.parquet"))
 
-# df %>%
-#   .[sample(1:nrow(.), 10000),] %>%
-#   st_as_sf(coords = c("x", "y")) %>% st_geometry() %>%
-#   plot()
+d1 %>%
+  .[sample(1:nrow(.), 10000),] %>%
+  st_as_sf(coords = c("x", "y")) %>%
+  plot(max.plot = 12)
 ```

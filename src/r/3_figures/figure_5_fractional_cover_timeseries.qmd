@@ -10,14 +10,17 @@ editor_options:
 pacman::p_load(tidyverse, arrow, terra, sf, data.table, latticeExtra)
 
 # BB + surrounding. Min / Max values of cover types per pixel per year.
-dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
-  mutate(cyear = year - 2008, .after = 2)
-dat_2 <- read_parquet("./outputs/tables/full_dataframe.parquet")
+# dat <- read_parquet("./outputs/tables/bonbon_minmax.parquet") %>% 
+#   mutate(cyear = year - 2008, .after = 2)
+data <- read_parquet("./outputs/tables/full_dataframe.parquet") %>% 
+  filter(study_zone != 3)
 
-study_area <- read_sf("./outputs/vector/bonbon_boundary_buffer.gpkg") %>% 
+# data[sample(1:nrow(data), 10000), ] %>% st_as_sf(., coords = c("x", "y")) %>% plot(max.plot = 12)
+
+study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_transform("EPSG:28353")
 
-rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc") %>% 
+rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_1900_2022.nc") %>% 
   # .[[which(time(.) >= as_date("2001-01-01"))]] %>% 
   # .[[which(time(.) < as_date("2023-01-01"))]] %>% 
   mask(study_area) %>% 
@@ -39,7 +42,7 @@ monthly_rain <- roll(rain, 12, "mean", type = "to") %>%
 monthly_rain <- monthly_rain %>%
   filter(!is.na(rainfall))
 
-monthly_fc <- dat_2 %>%
+monthly_fc <- data %>%
   mutate(bonbon = as.factor(ifelse(station == "Bon Bon", 1, 0)),
          tvc = pv + npv) %>%
   group_by(bonbon, cell) %>%
@@ -49,10 +52,10 @@ monthly_fc <- dat_2 %>%
          npv_12mo = frollmean(npv, 12),
          bare_12mo = frollmean(bare, 12)) %>%
   group_by(date, bonbon) %>%
-  summarise(tvc_12mo = mean(tvc_12mo),
-            pv_12mo = mean(pv_12mo),
-            npv_12mo = mean(npv_12mo),
-            bare_12mo = mean(bare_12mo)) %>%
+  summarise(tvc_12mo = mean(tvc_12mo, na.rm = T),
+            pv_12mo = mean(pv_12mo, na.rm = T),
+            npv_12mo = mean(npv_12mo, na.rm = T),
+            bare_12mo = mean(bare_12mo, na.rm = T)) %>%
   pivot_longer(cols = 3:ncol(.), names_to = "cover_type", values_to = "cover") %>%
   filter(date < as_date("2023-01-01"))
 
@@ -78,40 +81,6 @@ ribbon_data[mapply(is.infinite, ribbon_data)] <- NA
 
 ##########################################################
 ```
-
-# Correlation between difference and rainfall anom
-
-```{r}
-cover_rain <- monthly_fc %>% 
-  # filter(cover_type == "pv_12mo") %>%
-  mutate(bonbon = ifelse(bonbon == 1, "bonbon", "surrounding")) %>% 
-  pivot_wider(id_cols = c("date", "cover_type"), values_from = cover, names_from = bonbon) %>% 
-  mutate(difference = surrounding - bonbon) %>% 
-  merge(monthly_rain, by = "date", all.x = F) %>% 
-  mutate(rainfall_anom = rainfall - mean(rainfall, na.rm = T))
-
-ggplot(cover_rain, aes(x = rainfall_anom, y = difference, colour = cover_type)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_classic()
-
-pv_cor <- cover_rain %>%
-  filter(cover_type == "pv_12mo") %>% 
-  {cor(.$difference, .$rainfall_anom)}
-
-npv_cor <- cover_rain %>%
-  filter(cover_type == "npv_12mo") %>% 
-  {cor(.$difference, .$rainfall)}
-
-bare_cor <- cover_rain %>%
-  filter(cover_type == "bare_12mo") %>% 
-  {cor(.$difference, .$rainfall)}
-
-cat(" PV correlation = ", pv_cor,"\n",
-    "NPV correlation = ", npv_cor,"\n",
-    "bare correlation = ", bare_cor)
-```
-
 
 # Cover Plot
 
@@ -248,9 +217,43 @@ ggpubr::ggarrange(pv_plot +
                   heights = c(1, 1, 1, 1),
                   align = "v")
 
-ggsave("./figures/figure_4_rolling_cover.png",
+ggsave("./figures/figure_5_rolling_cover.png",
        width = 16,
        height = 14,
        units = "cm")
 
 ```
+
+
+# Correlation between difference and rainfall anom
+
+```{r}
+cover_rain <- monthly_fc %>% 
+  mutate(bonbon = ifelse(bonbon == 1, "bonbon", "surrounding")) %>% 
+  pivot_wider(id_cols = c("date", "cover_type"), values_from = cover, names_from = bonbon) %>% 
+  mutate(difference = surrounding - bonbon) %>% 
+  merge(monthly_rain, by = "date", all.x = F) %>% 
+  mutate(rainfall_anom = rainfall - mean(rainfall, na.rm = T))
+
+ggplot(cover_rain, aes(x = rainfall_anom, y = difference, colour = cover_type)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_classic()
+
+pv_cor <- cover_rain %>%
+  filter(cover_type == "pv_12mo") %>% 
+  {cor(.$difference, .$rainfall_anom)}
+
+npv_cor <- cover_rain %>%
+  filter(cover_type == "npv_12mo") %>% 
+  {cor(.$difference, .$rainfall)}
+
+bare_cor <- cover_rain %>%
+  filter(cover_type == "bare_12mo") %>% 
+  {cor(.$difference, .$rainfall)}
+
+cat(" PV correlation = ", pv_cor,"\n",
+    "NPV correlation = ", npv_cor,"\n",
+    "bare correlation = ", bare_cor)
+```
+

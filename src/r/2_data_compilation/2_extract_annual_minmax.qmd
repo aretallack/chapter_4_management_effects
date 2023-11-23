@@ -13,7 +13,8 @@ preciding 3 or 12 months of precipitation from this time.
 ```{r}
 #| label: setup
 pacman::p_load(arrow, tidyverse, data.table, dtplyr)
-d1 <- arrow::read_parquet("./outputs/tables/full_dataframe.parquet")
+d1 <- arrow::read_parquet("./outputs/tables/full_dataframe.parquet") %>% 
+  filter(study_zone != 3)
 ```
 
 # select min and max cover rows
@@ -61,9 +62,7 @@ d2 <- Reduce(merge, list(d1[is.na(pv) == F][, .(station = as.factor(unique(stati
                                               keyby = .(cell, year)]
                          )
              )
-```
 
-```{r}
 write_parquet(d2, "./outputs/tables/bonbon_minmax.parquet")
 ```
 

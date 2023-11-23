@@ -39,7 +39,7 @@ effects <- effects %>%
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_transform("EPSG:28353")
 
-rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc") %>% 
+rain <- rast("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_1900_2022.nc") %>% 
   mask(study_area) %>% 
   crop(study_area)
 
@@ -148,12 +148,13 @@ ggpubr::ggarrange(pv_eff +
                   heights = c(1, 0.3),
                   align = "v")
 
-ggsave("./figures/figure_5_pv_effect.png",
+ggsave("./figures/figure_6_pv_cover_difference.png",
        width = 16,
        height = 12,
+       dpi = 300,
        units = "cm")
 
-npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2014-06", truncated = 1),labely = 1.75, legend_position = c(0.80, 0.11)) +
+npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2013-09", truncated = 1),labely = 1.5, legend_position = c(0.80, 0.11)) +
   # geom_line(data = monthly_rain, aes(x = date, y = rainfall_anom/100, colour = NULL, linetype = NULL)) +
   # scale_y_continuous(
   #   name = "Fractional Cover (%)",
@@ -170,12 +171,13 @@ ggpubr::ggarrange(npv_eff +
                   align = "v")
 
 
-ggsave("./figures/figure_6_npv_effect.png",
+ggsave("./figures/figure_7_npv_cover_difference.png",
        width = 16,
        height = 12,
+       dpi = 300,
        units = "cm")
 
-bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2014-06", truncated = 1),labely = 0.2, legend_position = c(0.18, 0.11)) +
+bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2013-09", truncated = 1),labely = 1, legend_position = c(0.18, 0.11)) +
   scale_colour_manual(values = c("#FC8D62", "#FC8D62"))
 
 ggpubr::ggarrange(bare_eff +
@@ -187,8 +189,9 @@ ggpubr::ggarrange(bare_eff +
                   align = "v")
 
 
-ggsave("./figures/figure_7_bare_effect.png",
+ggsave("./figures/figure_8_bare_cover_difference.png",
        width = 16,
        height = 12,
+       dpi = 300,
        units = "cm")
 ```
