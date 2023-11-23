@@ -7,52 +7,56 @@ editor_options:
 ```{r}
 pacman::p_load(tidyverse, plyr, tidyterra, sf, terra, mblm, ggpubr)
 
-raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", full.names = T)) %>% 
-  .[[1]]
-raster[!is.na(raster)] <- NA
-
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
 
-surrounding_area <- st_bbox(st_buffer(study_area, 9000)) %>% 
+surrounding_area <- st_bbox(st_buffer(study_area, 500)) %>% 
   st_as_sfc() %>% 
   st_difference(., study_area[1]) %>% 
   st_difference()
 
-chirps_rain <- rast("./outputs/raster/chirps_precipitation/CHIRPS2.0_global_monthly_EW_data_20000101_20230301.nc")
+# chirps_rain <- rast("./outputs/raster/chirps_precipitation/CHIRPS2.0_global_monthly_EW_data_20000101_20230301.nc")
+# 
+# mean_rain <- chirps_rain %>% 
+#   mean(na.rm = F) %>% 
+#   mask(vect(st_buffer(study_area, 5000))) %>% 
+#   crop(vect(st_buffer(study_area, 5000))) %>% 
+#   project(crs(raster))
+# 
+# tmax <- rast("E:/data/climate_data/temperature/agcd/agcd_v1-0-1_tmax_mean_r005_monthly_1910_2022.nc") %>%
+#   .[[time(.) >= ymd("2000-01-01")]] %>% 
+#   crop(vect(st_buffer(st_transform(study_area, crs(.)), 5000))) %>% 
+#   mean(na.rm = F) %>%
+#   mask(vect(st_buffer(st_transform(study_area, crs(.)), 5000)))
+# 
+# tmin <- rast("E:/data/climate_data/temperature/agcd/agcd_v1-0-1_tmin_mean_r005_monthly_1910_2022.nc") %>%
+#   .[[time(.) >= ymd("2000-01-01")]] %>% 
+#   crop(vect(st_buffer(st_transform(study_area, crs(.)), 5000))) %>% 
+#   mean(na.rm = F) %>%
+#   mask(vect(st_buffer(st_transform(study_area, crs(.)), 5000)))
+# tmean <- mean(tmax, tmin) %>% 
+#   project(crs(raster))
 
-mean_rain <- chirps_rain %>% 
-  mean(na.rm = F) %>% 
-  mask(vect(st_buffer(study_area, 5000))) %>% 
-  crop(vect(st_buffer(study_area, 5000))) %>% 
-  project(crs(raster))
+elevation <- rast("E:/data/Basedata/elevation/3secSRTM_DEM/3secSRTM_DEM/DEM_ESRI_GRID_16bit_Integer/dem3s_int.tif") %>% 
+  crop(vect(st_transform(study_area, crs(.)))) %>% 
+  project("epsg:28353") %>% 
+  mask(vect(st_transform(study_area, crs = crs(.))))
 
-tmax <- rast("E:/data/climate_data/temperature/agcd/agcd_v1-0-1_tmax_mean_r005_monthly_1910_2022.nc") %>%
-  .[[time(.) >= ymd("2000-01-01")]] %>% 
-  crop(vect(st_buffer(st_transform(study_area, crs(.)), 5000))) %>% 
-  mean(na.rm = F) %>%
-  mask(vect(st_buffer(st_transform(study_area, crs(.)), 5000)))
-
-tmin <- rast("E:/data/climate_data/temperature/agcd/agcd_v1-0-1_tmin_mean_r005_monthly_1910_2022.nc") %>%
-  .[[time(.) >= ymd("2000-01-01")]] %>% 
-  crop(vect(st_buffer(st_transform(study_area, crs(.)), 5000))) %>% 
-  mean(na.rm = F) %>%
-  mask(vect(st_buffer(st_transform(study_area, crs(.)), 5000)))
-tmean <- mean(tmax, tmin) %>% 
-  project(crs(raster))
+blankRast <- elevation
+blankRast[!is.na(blankRast)] <- NA
 
 ibra_sr <- read_sf("./data/vector/ibra_subregions.gpkg") %>% 
   st_intersection(st_geometry(study_area)[1]) %>%
-  st_crop(study_area) %>% 
+  st_crop(ext(elevation)) %>% 
   select(SUB_NAME_7) %>% 
   filter(SUB_NAME_7 != "Gawler Lakes") %>% 
-  rasterize(raster, field = "SUB_NAME_7")
+  rasterize(blankRast, field = "SUB_NAME_7")
 
 levels(ibra_sr) <- levels(ibra_sr)[[1]][c(1,3,2),] 
 
 nvis <- rast("E:/data/Basedata/Environmental/NVIS/FGDB_NVIS6_0_AUST_EXT_MVG/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>% 
   crop(st_transform(study_area, crs(.))) %>%
-  project(raster) %>% 
+  project(blankRast) %>% 
   mask(vect(st_transform(study_area, crs(.))))
 
 nvis <- droplevels(nvis)
@@ -81,7 +85,9 @@ plot_rasters <- function(raster, title) {
          fill = title) +
     theme_classic() +
     theme(legend.position = "bottom",
-          legend.margin = margin(-0.8,-0.8,-0.8,-0.8, "cm"),
+          legend.box.margin = margin(0.3,0,0,0, "cm"),
+          # legend.margin = margin(-2, 0, 0, 0, "cm"),
+          legend.background = element_rect(fill = "transparent"),
           legend.key = element_rect(colour = "black"),
           legend.text = element_text(size = unit(8, "cm")),
           legend.title = element_text(size = unit(6, "cm"), face = "bold", hjust = 0.5, vjust = -0.5),
@@ -92,42 +98,64 @@ plot_rasters <- function(raster, title) {
           plot.title = element_text(size = unit(10, "cm"),
                                     face = "bold",
                                     hjust = 0.5,
-                                    vjust = -10),
-          plot.margin = margin(-0.6,-0.8,0.8,-0.8, "cm")
+                                    vjust = -2),
+          # plot.margin = margin(-0.6,-0.8,0.8,-0.8, "cm")
+          plot.margin = unit(c(0, 0, 0.5, 0), "cm")
     )
   }
 
-rain_plot <- plot_rasters(mean_rain, "Mean Monthly\nRainfall") +
-  theme(legend.spacing.y = unit(0.15, "cm")
-        ) +
-  labs(fill = "Rainfall (mm)") +
-  scale_fill_viridis_c(
-    option = "viridis",
-    direction = -1,
-    na.value = NA,
-    limits = c(round_any(minmax(mean_rain)[1], 1),
-                 round_any(minmax(mean_rain)[2], 1) + 0.1),
-    breaks = c(round_any(minmax(mean_rain)[1], 1),
-               round_any(minmax(mean_rain)[2], 1)),
-    guide = guide_colorbar(barwidth = unit(2, "cm"),
-                           barheight = unit(0.5, "cm"),
-                           frame.colour = "black",
-                           ticks.colour = "black",
-                           title.position = "top")
-    )
+# rain_plot <- plot_rasters(mean_rain, "Mean Monthly\nRainfall") +
+#   theme(legend.spacing.y = unit(0.15, "cm")
+#         ) +
+#   labs(fill = "Rainfall (mm)") +
+#   scale_fill_viridis_c(
+#     option = "viridis",
+#     direction = -1,
+#     na.value = NA,
+#     limits = c(round_any(minmax(mean_rain)[1], 1),
+#                  round_any(minmax(mean_rain)[2], 1) + 0.1),
+#     breaks = c(round_any(minmax(mean_rain)[1], 1),
+#                round_any(minmax(mean_rain)[2], 1)),
+#     guide = guide_colorbar(barwidth = unit(2, "cm"),
+#                            barheight = unit(0.5, "cm"),
+#                            frame.colour = "black",
+#                            ticks.colour = "black",
+#                            title.position = "top")
+#     )
+# 
+# tmean_plot <- plot_rasters(tmean, "Mean\nTemperature") +
+#   labs(fill = "Temperature (°C)") +
+#   theme(legend.spacing.y = unit(0.15, "cm")
+#         ) +
+#   scale_fill_viridis_c(
+#     option = "plasma",
+#     direction = 1,
+#     na.value = NA,
+#     limits = c(plyr::round_any(minmax(tmean)[1], 0.1, floor),
+#                  plyr::round_any(minmax(tmean)[2], 0.1, ceiling)),
+#     breaks = c(plyr::round_any(minmax(tmean)[1], 0.1, floor),
+#                  plyr::round_any(minmax(tmean)[2], 0.1, ceiling)) ,
+#     guide = guide_colorbar(barwidth = unit(2, "cm"),
+#                            barheight = unit(0.5, "cm"),
+#                            frame.colour = "black",
+#                            ticks.colour = "black",
+#                            title.position = "top")
+#     )
 
-tmean_plot <- plot_rasters(tmean, "Mean\nTemperature") +
-  labs(fill = "Temperature (°C)") +
-  theme(legend.spacing.y = unit(0.15, "cm")
+elevation_plot <- plot_rasters(elevation, "Elevation (m)") +
+  labs(fill = "Elevation (m)") +
+  theme(legend.spacing.y = unit(0.2, "cm"),
+        legend.box.margin = margin(-0.8, 0,-1,0, "cm"),
+        plot.margin = margin(0.35, 0, 0.15, 0, "cm")
         ) +
   scale_fill_viridis_c(
     option = "plasma",
     direction = 1,
     na.value = NA,
-    limits = c(plyr::round_any(minmax(tmean)[1], 0.1, floor),
-                 plyr::round_any(minmax(tmean)[2], 0.1, ceiling)),
-    breaks = c(plyr::round_any(minmax(tmean)[1], 0.1, floor),
-                 plyr::round_any(minmax(tmean)[2], 0.1, ceiling)) ,
+    limits = c(plyr::round_any(minmax(elevation)[1], 1, floor),
+               plyr::round_any(minmax(elevation)[2], 1, ceiling)),
+    breaks = c(plyr::round_any(minmax(elevation)[1], 1, floor),
+               plyr::round_any(minmax(elevation)[2], 1, ceiling)),
     guide = guide_colorbar(barwidth = unit(2, "cm"),
                            barheight = unit(0.5, "cm"),
                            frame.colour = "black",
@@ -137,11 +165,12 @@ tmean_plot <- plot_rasters(tmean, "Mean\nTemperature") +
 
 ibra_plot <- plot_rasters(ibra_sr, "IBRA\nSubregions") +
   geom_sf(data = read_sf("./data/vector/ibra_subregions.gpkg") %>%
-            st_cast("MULTILINESTRING") %>% 
-            st_crop(st_buffer(study_area, -1800)) %>% 
+            st_cast("MULTILINESTRING") %>%
+            st_crop(st_buffer(study_area, -1800)) %>%
             st_intersection(st_geometry(study_area)[1]), colour = "grey30", fill = "transparent") +
   theme(legend.direction = "vertical",
         legend.position = c(0.5, 0),
+        legend.box.margin = margin(0.4,0,0,0, "cm"),
         legend.title = element_blank(),
         legend.key = element_rect(colour = "black"),
         legend.key.height = unit(0.3, "cm")) +
@@ -158,15 +187,16 @@ nvis_plot <- plot_rasters(nvis, "Vegetation Groups\n(NVIS)") +
                     labels = c("Chenopod Shrubland", "Acacia Open Woodland"),
                     na.translate = FALSE)
 
-ggpubr::ggarrange(rain_plot,
-                  tmean_plot,
+ggpubr::ggarrange(elevation_plot,
                   ibra_plot,
                   nvis_plot,
-                  ncol = 4)
+                  ncol = 3) +
+  theme(plot.margin = margin(0,0,0.7,0, "cm"))
 
-ggsave("./figures/context_maps.png",
+ggsave("./figures/figure_3_context_maps.png",
        width = 16,
-       height = 8,
+       height = 10,
+       dpi = 300,
        units = "cm")
 ```
 

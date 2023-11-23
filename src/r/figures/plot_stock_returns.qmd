@@ -61,7 +61,7 @@ plot_stocking <- stock_data %>%
   label = "bold('Bon Bon \nDestocked \n(2008)')",
   hjust = 1, parse = T,
   size = 10/.pt) +
-  labs(y = "Number of Sheep / km2") +
+  labs(y = bquote(bold('Number of Sheep /'~km^2))) +
   scale_x_date(limits = as_date(c(min(stock_data$date), max(stock_data$date))),
                breaks = "5 year", 
                date_labels = "%Y", 
@@ -74,13 +74,15 @@ plot_stocking <- stock_data %>%
     plot.margin = margin(t = 0.5, b = 0.2, r = 0.5, unit = "cm")
   )
 
-plot_rain <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
+plot_rain <- ggplot(monthly_rain, aes(x = date, y = (rainfall*12))) +
   geom_line(colour = "steelblue") +
+  geom_hline(yintercept = mean(monthly_rain$rainfall*12), colour = "grey", linetype = "dashed", linewidth = 0.5) +
   scale_x_date(limits = as_date(c(min(stock_data$date), max(stock_data$date))),
                breaks = "5 year", 
                date_labels = "%Y", 
                expand = c(0, 0)) +
-  labs(y = "Monthly\nRainfall (mm)",
+  scale_y_continuous(breaks = c(100, 250, 400)) +
+  labs(y = "12 Month\nRainfall (mm)",
        x = "Year") +
   theme_classic() +
   theme(
@@ -97,7 +99,7 @@ ggpubr::ggarrange(plot_stocking +
                   heights = c(1, 0.5),
                   align = "v")
 
-ggsave("./figures/bonbon_stock_returns.png",
+ggsave("./figures/figure_2_stock_returns.png",
        width = 16,
        height = 8,
        units = "cm")

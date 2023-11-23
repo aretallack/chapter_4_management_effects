@@ -96,9 +96,9 @@ ggplot(monthly_fc, aes(x = date)) +
   # geom_line(aes(y = rainfall, alpha = rain), colour = "lightblue", show.legend = F) +
   geom_line(aes(y = cover, linetype = paste0(bonbon, cover_type), colour = paste0(bonbon, cover_type)), linewidth = 0.6) +
   geom_ribbon(data = ribbon_data, aes(ymin = min, ymax = max, fill = cover_type), alpha = 0.2, show.legend = F) +
-  annotate("rect", xmin = as_date("2008-01-01"), xmax = as_date("2008-04-01"), ymin = 0, ymax = 72,
+  annotate("rect", xmin = as_date("2007-11-01"), xmax = as_date("2008-03-01"), ymin = 0, ymax = 72,
            alpha = .1, fill = "black") +
-  annotate("text", x = as_date("2008-06-01"), y = 66,
+  annotate("text", x = as_date("2008-04-01"), y = 66,
            label = "bold('Bon Bon Destocked (2008)')",
            hjust = 0, color = "grey30", parse = T,
            size = 8/.pt) +
@@ -183,12 +183,14 @@ pv_plot <- plot_cover(monthly_fc %>%
 # Rainfall Plot
 
 ```{r}
-p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
+p2 <- ggplot(monthly_rain, aes(x = date, y = (rainfall * 12))) +
   geom_line(colour = "steelblue") +
+  geom_hline(yintercept = mean(monthly_rain$rainfall*12), colour = "grey", linetype = "dashed", linewidth = 0.5) +
   scale_x_date(limits = as_date(c(as_date("2002-01-01"), as_date("2023-01-01"))), 
                breaks = "2 year", date_labels = "%Y", 
                expand = c(0, 0)) +
-  labs(y = "Monthly\nRainfall (mm)",
+  scale_y_continuous(breaks = c(100, 250, 400), limits = c(0, 400)) +
+  labs(y = "12 Month\nRainfall (mm)",
        x = "Year") +
   theme_classic() +
   theme(
@@ -196,22 +198,23 @@ p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
     axis.text = element_text(size = 10)
   )
 
-ggpubr::ggarrange(bare_plot +
+ggpubr::ggarrange(pv_plot +
                     ggpubr::rremove("x.title"),
-                    # ggpubr::rremove("x.text"),
+                    # ggpubr::rremove("x.text")
                   npv_plot +
                     ggpubr::rremove("x.title"),
                     # ggpubr::rremove("x.text"),
-                  pv_plot +
+                  bare_plot +
                     ggpubr::rremove("x.title"),
-                    # ggpubr::rremove("x.text")
+                    # ggpubr::rremove("x.text"),
+                  
                   p2,
                   ncol = 1,
                   nrow = 4,
                   heights = c(1, 1, 1, 1),
                   align = "v")
 
-ggsave("./figures/rainfall_FC.png",
+ggsave("./figures/figure_4_rolling_cover.png",
        width = 16,
        height = 14,
        units = "cm")

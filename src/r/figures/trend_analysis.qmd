@@ -12,6 +12,11 @@ raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", ful
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
 
+surrounding_area <- st_bbox(st_buffer(study_area, 250)) %>% 
+  st_as_sfc() %>% 
+  st_difference(., study_area[1]) %>% 
+  st_difference()
+
 ibra_sr <- read_sf("./data/vector/ibra_subregions.gpkg") %>% 
   select(SUB_NAME_7) %>% 
   st_intersection(st_geometry(study_area)[1])
@@ -95,20 +100,6 @@ names(bare_diff) <- "Persistent Bare"
 # Plot Rasters
 
 ```{r}
-
-coords <- tibble(x = 6630017.77,
-                 y = 536692.21)
-
-extract(npv_05, coords) %>% 
-  pivot_longer(-1) %>%
-  add_column(time = 1:nrow(.)) %>%
-  ggplot(aes(x = time, y = value)) +
-  geom_line()
-
-
-pal <- RColorBrewer::brewer.pal(11, "PiYG")
-
-
 plot_maps <- function(x){
   lims <- x %>% 
     as.vector() %>% 
@@ -127,6 +118,7 @@ plot_maps <- function(x){
   ggplot() +
     geom_spatraster(data = x) +
     geom_sf(data = ibra_sr, fill = "transparent", colour = alpha("grey10", 0.5), linewidth = 0.3) +
+    geom_sf(data = surrounding_area, fill = "white", colour = "transparent") +
     geom_sf(data = st_buffer(study_area[1], 200), fill = "transparent", linewidth = 1) +
     geom_sf(data = study_area, fill = "transparent", linewidth = c(0.8, 0.5), colour = c(alpha("#FFFF73", 1), alpha("black", 0.8)), linetype = c("solid", "dotted")) +
     
@@ -157,6 +149,8 @@ plot_maps <- function(x){
           axis.text = element_blank(),
           axis.ticks = element_blank()
           )
+            
+
 }
 
 pv_lims <- quantile(as.vector(pv_diff), c(0.01, 0.99), na.rm = T) %>% 
@@ -165,8 +159,9 @@ pv_lims <- quantile(as.vector(pv_diff), c(0.01, 0.99), na.rm = T) %>%
 pv_diff_plot <- plot_maps(pv_diff) +
   theme(plot.margin = unit(c(0, 0, -0.5, 0), "cm")) +
   scale_fill_continuous_diverging(palette = "Purple-Green",
+                                  rev = F,
                                   mid = 0,
-                                  na.value = "white",
+                                  na.value = "grey70",
                                   limits = c(round_any(pv_lims[1], 0.1, floor), round_any(pv_lims[2], 0.1, ceiling)),
                                   breaks = c(0, round_any(pv_lims[2], 0.1, ceiling)),
                                   labels = c("0", round_any(pv_lims[2], 0.1, ceiling)),
@@ -185,9 +180,10 @@ npv_lims <- quantile(as.vector(npv_diff), c(0.01, 0.99), na.rm = T) %>%
 
 npv_diff_plot <- plot_maps(npv_diff) +
   theme(plot.margin = unit(c(0, 0, -0.5, 0), "cm")) +
-  scale_fill_continuous_diverging(palette = "Purple-Green", 
+  scale_fill_continuous_diverging(palette = "red_green",
+                                  rev = F,
                                   mid = 0,
-                                  na.value = "white",
+                                  na.value = "grey70",
                                   limits = c(round_any(npv_lims[1], 0.1, floor), round_any(npv_lims[2], 0.1, ceiling)),
                                   breaks = c(round_any(npv_lims[1], 0.1, floor), 0, round_any(npv_lims[2], 0.1, ceiling)),
                                   labels = c(round_any(npv_lims[1], 0.1, floor), "0", round_any(npv_lims[2], 0.1)),
@@ -205,10 +201,9 @@ bare_lims <- quantile(as.vector(bare_diff), c(0.01, 0.99), na.rm = T) %>%
   
 bare_diff_plot <- plot_maps(bare_diff) +
   theme(plot.margin = unit(c(0, 0, -0.5, 0), "cm")) +
-  theme(plot.margin = unit(c(0, 0, -0.5, 0), "cm")) +
-  scale_fill_continuous_diverging(palette = "Purple-Green", 
+  scale_fill_continuous_diverging(palette = "purple_brown", 
                                   mid = 0,
-                                  na.value = "white",
+                                  na.value = "grey70",
                                   limits = c(round_any(bare_lims[1], 0.1, floor), round_any(bare_lims[2], 0.1, ceiling)),
                                   breaks = c(round_any(bare_lims[1], 0.1, floor), 0, round_any(bare_lims[2], 0.1, ceiling)),
                                   labels = c(round_any(bare_lims[1], 0.1, floor), "0", round_any(bare_lims[2], 0.1)),
@@ -229,7 +224,7 @@ ggarrange(pv_diff_plot,
           legend = "bottom") +
   theme(plot.margin = margin(0,0,0.5,0, "cm"))
 
-ggsave("./figures/spatial_trends.png",
+ggsave("./figures/figure_8_20year_differences.png",
        width = 16,
        height = 10,
        dpi = 300,

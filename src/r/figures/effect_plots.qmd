@@ -83,9 +83,9 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
 
   ggplot(df, aes(y = values, x = date, colour = veg_groups, linetype = veg_groups)) +
     geom_line(linewidth = 1) +
-    geom_segment(data = means, aes(x = min(df$date), y = mean_ref, xend = as_date("2008-04-01"), yend = mean_ref, colour = NULL)) +
-    geom_segment(data = means, aes(x = as_date("2008-08-01"), y = mean_eff, xend = max(df$date), yend = mean_eff, colour = NULL)) +
-    annotate("rect", xmin = as_date("2008-04-01"), xmax = as_date("2008-08-01"), ymin = min(df$values), ymax = Inf,
+    geom_segment(data = means, aes(x = min(df$date), y = mean_ref, xend = as_date("2007-10-01"), yend = mean_ref, colour = NULL)) +
+    geom_segment(data = means, aes(x = as_date("2008-02-01"), y = mean_eff, xend = max(df$date), yend = mean_eff, colour = NULL)) +
+    annotate("rect", xmin = as_date("2007-10-01"), xmax = as_date("2008-02-01"), ymin = min(df$values), ymax = Inf,
              alpha = .1, fill = "black") +
     annotate("text", x = labelx, y = labely,
              label = "bold('Bon Bon Destocked\n(2008)')",
@@ -122,14 +122,14 @@ plot_effects <- function(effects, cover_type, labelx, labely, legend_position) {
 
 # PV
 ```{r}
-p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
+p2 <- ggplot(monthly_rain, aes(x = date, y = (rainfall * 12))) +
   geom_line(colour = "steelblue") +
+  geom_hline(yintercept = mean(monthly_rain$rainfall*12), colour = "grey", linetype = "dashed", linewidth = 0.5) +
   scale_x_date(limits = as_date(c(as_date("2001-01-01"), as_date("2023-01-01"))), 
                breaks = "2 year", date_labels = "%Y", 
                expand = c(0, 0)) +
-  scale_y_continuous(breaks = seq(0, ceiling(max(monthly_rain$rainfall)), 10),
-                     expand = c(0, 1)) +
-  labs(y = "Monthly\nRainfall (mm)",
+  scale_y_continuous(breaks = c(100, 250, 400), limits = c(0, 400)) +
+  labs(y = "12 Month\nRainfall (mm)",
        x = "Year") +
   theme_classic() +
   theme(
@@ -137,7 +137,7 @@ p2 <- ggplot(monthly_rain, aes(x = date, y = rainfall)) +
     axis.text = element_text(size = 10)
   )
 
-pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2014-06", truncated = 1),labely = 1.05, legend_position = c(0.80, 0.11)) +
+pv_eff <- plot_effects(effects, "pv05_eff", labelx = ymd("2013-09", truncated = 1),labely = 1.05, legend_position = c(0.80, 0.11)) +
   scale_colour_manual(values = c("#66C2A5", "#66C2A5"))
 
 ggpubr::ggarrange(pv_eff +
@@ -148,7 +148,7 @@ ggpubr::ggarrange(pv_eff +
                   heights = c(1, 0.3),
                   align = "v")
 
-ggsave("./figures/pv_05_effect.png",
+ggsave("./figures/figure_5_pv_effect.png",
        width = 16,
        height = 12,
        units = "cm")
@@ -159,7 +159,7 @@ npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2014-06", truncated 
   #   name = "Fractional Cover (%)",
   #   sec.axis = sec_axis(~.*100, name = "Monthly Rainfall (mm)")
   #   ) +
-  scale_colour_manual(values = c("#FC8D62", "#FC8D62"))
+  scale_colour_manual(values = c("#8DA0CB", "#8DA0CB"))
 
 ggpubr::ggarrange(npv_eff +
                     ggpubr::rremove("x.title") +
@@ -170,13 +170,13 @@ ggpubr::ggarrange(npv_eff +
                   align = "v")
 
 
-ggsave("./figures/npv_05_effect.png",
+ggsave("./figures/figure_6_npv_effect.png",
        width = 16,
        height = 12,
        units = "cm")
 
 bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2014-06", truncated = 1),labely = 0.2, legend_position = c(0.18, 0.11)) +
-  scale_colour_manual(values = c("#FFD92F", "#FFD92F"))
+  scale_colour_manual(values = c("#FC8D62", "#FC8D62"))
 
 ggpubr::ggarrange(bare_eff +
                     ggpubr::rremove("x.title") +
@@ -187,7 +187,7 @@ ggpubr::ggarrange(bare_eff +
                   align = "v")
 
 
-ggsave("./figures/bare_95_effect.png",
+ggsave("./figures/figure_7_bare_effect.png",
        width = 16,
        height = 12,
        units = "cm")
