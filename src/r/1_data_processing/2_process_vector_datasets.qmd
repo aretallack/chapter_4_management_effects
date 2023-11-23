@@ -15,9 +15,9 @@ study_extent <- study_area %>% ext()
 # Stations
 
 ```{r}
-stations <- read_sf("./data/vector/pastoral_stations.gpkg") %>% 
-  vect() %>%
-  crop(study_extent) %>% 
+stations <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
+  st_transform(crs(study_area)) %>% 
+  st_crop(., st_bbox(study_area)) %>% 
   st_as_sf()
 
 write_sf(stations, "./outputs/vector/pastoral_stations.gpkg")
@@ -63,7 +63,7 @@ fences <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
   vect() %>% 
   crop(study_extent)
 
-writeVector(fences, "./outputs/vector/fences.gpkg", overwrite = T)
+writeVector(fences, "./outputs/vector/bonbon_boundary_buffer.gpkg", overwrite = T)
 ```
 
 # Water

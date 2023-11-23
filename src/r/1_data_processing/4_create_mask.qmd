@@ -15,7 +15,7 @@ blankRast[!is.na(blankRast)] <- NA
 
 ibra_subregions <- read_sf("./outputs/vector/ibra_subregions.gpkg")
 
-fences <- read_sf("./outputs/vector/fences.gpkg")
+fences <- read_sf("./outputs/vector/bonbon_boundary_buffer.gpkg")
 
 water <- read_sf("./outputs/vector/water_courses.gpkg") %>% 
   mutate(water = 1)
@@ -56,6 +56,8 @@ mask <- (ibra_subregions + fences + water + nvis_groups + pastoral_landSystems)
 mask[mask < 1] <- 0
 mask[mask >= 1] <- 1
 
+# Mask no fence used for masking on maps
+# Enables fenceline regions to still be seen.
 mask_nofence <- (ibra_subregions + water + nvis_groups + pastoral_landSystems)
 mask_nofence[mask_nofence < 1] <- 0
 mask_nofence[mask_nofence >= 1] <- 1 

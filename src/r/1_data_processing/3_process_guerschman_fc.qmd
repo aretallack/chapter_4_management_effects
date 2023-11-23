@@ -90,7 +90,7 @@ names(bare) <- rast_names(bare)
 
 Save processed rasters as .nc
 
-```{r, eval = FALSE}
+```{r}
 start_date <- time(pv)[1] %>% 
   str_replace_all("-", "")
 end_date <- time(pv)[length(time(pv))] %>% 

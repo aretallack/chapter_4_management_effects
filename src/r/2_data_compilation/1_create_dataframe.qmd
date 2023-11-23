@@ -106,43 +106,6 @@ rm(list = c("pv", "npv", "bare"))
 gc(full = T, reset = T)
 ```
 
-# AGCD Precipitation
-
-```{r eval = F}
-# p_agcd <- processRainfall("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc", "p_agcd")
-# 
-# setkeyv(p_agcd, c("date", "x","y"))
-# df <- merge(df, 
-#             p_agcd %>% select(-cell), 
-#             by = c("date", "x", "y"),
-#             all.x = T)
-# 
-# rm(p_agcd)
-# gc(full = T, reset = T)
-# 
-# p_agcd_3 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_3mo_sum.nc", "p_agcd_3")
-# 
-# setkeyv(p_agcd_3, c("date", "x","y"))
-# df <- merge(df, 
-#             p_agcd_3 %>% select(-cell), 
-#             by = c("date", "x", "y"),
-#             all.x = T)
-# 
-# rm(p_agcd_3)
-# gc(full = T, reset = T)
-# 
-# p_agcd_12 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_12mo_sum.nc", "p_agcd_12")
-# 
-# setkeyv(p_agcd_12, c("date", "x","y"))
-# df <- merge(df, 
-#             p_agcd_12 %>% select(-cell), 
-#             by = c("date", "x", "y"),
-#             all.x = T)
-# 
-# rm(p_agcd_12)
-# gc(full = T, reset = T)
-
-```
 
 # Statistical zones
 
@@ -230,26 +193,6 @@ df <- merge(df,
 rm(l_sys_id)
 gc(full = T, reset = T)
 
-######################
-### NVIS SubGroups ###
-######################
-
-nvis_s <- rast("./data/raster/NVIS6_0_AUST_EXT_MVS_ALB.tif") %>% 
-  project(blankRast)
-nvis_s[nvis_s == "Unknown/No data"] <- NA
-nvis_s <- nvis_s %>% 
-  as.data.frame(xy = T, cells = T)
-setDT(nvis_s)
-
-setkeyv(nvis_s, c("x","y"))
-
-df <- merge(df, 
-            nvis_s %>% select(-cell), 
-            by = c("x", "y"),
-            all.x = T)
-
-rm(nvis_s)
-gc(full = T, reset = T)
 
 ###################
 ### NVIS Groups ###
@@ -298,7 +241,7 @@ gc(full = T, reset = T)
 ############################
 
 
-fences <- read_sf("./outputs/vector/fences.gpkg") %>%
+fences <- read_sf("./outputs/vector/bonbon_boundary_buffer.gpkg") %>%
   rasterize(blankRast, field = "fence") %>% 
   as.data.frame(xy = T, cells = T)
 setDT(fences)
@@ -313,29 +256,10 @@ df <- merge(df,
 rm(fences)
 gc(full = T, reset = T)
 
-#################
-### Dog Fence ###
-#################
+###################
+### Water Areas ###
+###################
 
-dog_fence <- read_sf("./outputs/vector/dog_fence.gpkg") %>% 
-  rasterize(blankRast, field = "inside") %>% 
-  as.data.frame(xy = T, cells = T, na.rm = F)
-setDT(dog_fence)
-
-setkeyv(dog_fence, c("x","y"))
-
-df <- merge(df, 
-            dog_fence %>% select(-cell), 
-            by = c("x", "y"),
-            all.x = T)
-
-rm(dog_fence)
-gc(full = T, reset = T)
-```
-
-# Water areas
-
-```{r}
 water <- read_sf("./outputs/vector/water_courses.gpkg") %>% 
   add_column(water = 1) %>% 
   vect() %>% 
@@ -389,7 +313,7 @@ df <- df %>%
 
 
 ```{r}
-names(df) <- c("x", "y", "cell", "date", "year", "pv", "npv", "bare", "station", "ibra_subregion", "land_system", "land_system_id", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "water")
+names(df) <- c("x", "y", "cell", "date", "year", "pv", "npv", "bare", "station", "ibra_subregion", "land_system", "land_system_id", "nvis_group", "study_zone", "fence_buffer", "water")
 ```
 
 
