@@ -1,0 +1,107 @@
+---
+title: "Plot effects"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: setup
+
+pacman::p_load(tidyverse, lubridate, terra, sf)
+```
+
+```{r}
+stock_data <- read_csv("./data/tables/bonbon_stock_returns.csv") %>% 
+  mutate(date = ymd(year, truncated = 2), .before = 1)
+
+study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  st_transform("EPSG:4326")
+
+rain <- rast("E:/data/climate_data/rainfall/agcd/agcd_v2-0-1_precip_total_r001_monthly_1900_2022.nc") %>% 
+  .[[which(time(.) >= as_date("1955-01-01"))]]
+  # .[[which(time(.) < as_date("2023-01-01"))]] %>%
+
+crs(rain) <- "EPSG:4326"
+
+rain <- rain %>% 
+  crop(study_area) %>% 
+  mask(study_area)
+
+monthly_rain <- roll(rain, 12, "mean", type = "to") %>%
+  lapply(\(x) as.vector(x) %>%
+                         mean(na.rm = T)) %>%
+  unlist() %>%
+  tibble(date = time(rain),
+         rainfall = .) %>%
+  as.data.frame()
+
+monthly_rain <- monthly_rain %>%
+  filter(!is.na(rainfall))
+```
+
+```{r}
+
+plot_stocking <- stock_data %>% 
+  ggplot(aes(x = date, y = (number/(216000 * 0.01)))) + # number per km2 (ha x 0.01)
+  geom_line(linewidth = 0.6) +
+  # geom_segment(x = min(stock_data$date), y = pre_2000_mean$pre_2000_mean, xend = ymd("2001-01-01"), yend = pre_2000_mean$pre_2000_mean) +
+  # geom_segment(x = ymd("2001-01-01"), y = pre_2008_mean$pre_2008_mean, xend = max(stock_data$date), yend = pre_2008_mean$pre_2008_mean) +
+  annotate("rect", xmin = ymd("1999-09-01"), ymin = 0, xmax = ymd("2000-02-01"), ymax = Inf, alpha = 0.5) +
+  annotate("rect", xmin = ymd("2000-02-01"), ymin = 0, xmax = ymd("2023-01-01"), ymax = Inf, alpha = 0.1, fill = "steelblue") +
+  annotate("text", x = ymd("2011-08-01"), y = 7,
+           label = "bold('Study\nPeriod')",
+           hjust = 0.5, parse = T,
+           size = 10/.pt) +
+  annotate("segment", x = ymd("2016-06-01"), y = 7.5, xend = ymd("2022-06-01"), yend = 7.5,
+  linewidth = 1, arrow = arrow(type = "closed", length = unit(0.02, "npc"))) +
+  annotate("segment", x = ymd("2007-01-01"), y = 7.5, xend = ymd("2001-01-01"), yend = 7.5,
+           linewidth = 1, arrow = arrow(type = "closed", length = unit(0.02, "npc"))) +
+  annotate("text", x = as_date("2017-04-01"), y = 3,
+  label = "bold('Bon Bon \nDestocked \n(2008)')",
+  hjust = 1, parse = T,
+  size = 10/.pt) +
+  labs(y = bquote(bold('Number of Sheep /'~km^2))) +
+  scale_x_date(limits = as_date(c(min(stock_data$date), max(stock_data$date))),
+               breaks = "5 year", 
+               date_labels = "%Y", 
+               expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) + # labels = scales::label_number(suffix = " k", scale = 1e-3), 
+  theme_classic() +
+  theme(
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10),
+    plot.margin = margin(t = 0.5, b = 0.2, r = 0.5, unit = "cm")
+  )
+
+plot_rain <- ggplot(monthly_rain, aes(x = date, y = (rainfall*12))) +
+  geom_line(colour = "steelblue") +
+  geom_hline(yintercept = mean(monthly_rain$rainfall*12), colour = "grey", linetype = "dashed", linewidth = 0.5) +
+  scale_x_date(limits = as_date(c(min(stock_data$date), max(stock_data$date))),
+               breaks = "5 year", 
+               date_labels = "%Y", 
+               expand = c(0, 0)) +
+  scale_y_continuous(breaks = c(100, 250, 400)) +
+  labs(y = "12 Month\nRainfall (mm)",
+       x = "Year") +
+  theme_classic() +
+  theme(
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10)
+  )
+
+
+ggpubr::ggarrange(plot_stocking +
+                    ggpubr::rremove("x.title") +
+                    ggpubr::rremove("x.text"), 
+                  plot_rain,
+                  ncol = 1,
+                  heights = c(1, 0.5),
+                  align = "v")
+
+ggsave("./figures/figure_2_stock_returns.png",
+       width = 16,
+       height = 8,
+       units = "cm")
+```
+

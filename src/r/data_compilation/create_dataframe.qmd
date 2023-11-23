@@ -1,0 +1,405 @@
+---
+title: "Create_Dataframe"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+
+This markdown loads the necessary raster datasets - transforms them to match the same spatial extent and coordinate system as the fractional cover data, and converts to data.table format and merges into a single dataframe representing all raster variables.
+
+This table is used for GAMs in section 1 and 2 of the paper.
+
+```{r}
+#| label: setup
+pacman::p_load(tidyverse, lubridate, terra, sf, fields, arrow, data.table)
+outputFolder <- "./outputs/tables"
+
+# Function to process rainfall datasets. Pivot longer to have date column.
+processRainfall <- function(path, dataset_name) {
+  precip <- rast(path)
+  dates <- time(precip)
+  precip <- precip %>% 
+    project(blankRast) %>%
+    as.data.frame(xy = T, cells = T, na.rm = F)
+
+  names(precip)[4:ncol(precip)] <- as.character(dates)
+
+  precip <- precip %>%  
+    pivot_longer(., cols = 4:ncol(.), names_to = "date", values_to = dataset_name)
+  setDT(precip)
+
+  return(precip)
+}
+```
+
+
+# Create template raster for reprojection
+
+```{r}
+path_pv <- "./outputs/raster/guerschman_fc_monthly/fc_monthly_pv_20010101_20230101.nc"
+
+# Create blank raster - used to project all datasets to same coordinate system
+blankRast <- rast(path_pv)[[1]]
+blankRast[!is.na(blankRast)] <- NA
+names(blankRast) <- "blankRast"
+
+# Polygon extent of study area
+extent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  st_geometry()
+
+# Get Dates from pv file names
+dates <- rast(path_pv) %>% 
+  time()
+```
+
+# Load FC variables
+
+```{r}
+path_npv <- "./outputs/raster/guerschman_fc_monthly/fc_monthly_npv_20010101_20230101.nc"
+path_bare <- "./outputs/raster/guerschman_fc_monthly/fc_monthly_bare_20010101_20230101.nc"
+
+##########
+### PV ###
+##########
+
+pv <- rast(path_pv)
+pv <- as.data.frame(pv, xy = T, cells = T, na.rm = F)
+names(pv)[4:ncol(pv)] <- as.character(dates)
+
+pv <- pv %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "pv")
+setDT(pv)
+
+###########
+### NPV ###
+###########
+
+npv <- rast(path_npv)
+npv <- as.data.frame(npv, xy = T, cells = T, na.rm = F)
+names(npv)[4:ncol(npv)] <- as.character(dates)
+
+npv <- npv %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "npv")
+setDT(npv)
+
+############
+### Bare ###
+############
+
+bare <- rast(path_bare)
+bare <- as.data.frame(bare, xy = T, cells = T, na.rm = F)
+names(bare)[4:ncol(bare)] <- as.character(dates)
+
+bare <- bare %>% 
+  pivot_longer(cols = 4:ncol(.), names_to = "date", values_to = "bare")
+setDT(bare)
+
+#############################
+### Bind cover components ###
+#############################
+
+df <- cbind(pv, npv[,5]) %>% 
+  cbind(., bare[,5])
+
+rm(list = c("pv", "npv", "bare"))
+gc(full = T, reset = T)
+```
+
+# AGCD Precipitation
+
+```{r eval = F}
+# p_agcd <- processRainfall("./outputs/raster/agcd_precipitation/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc", "p_agcd")
+# 
+# setkeyv(p_agcd, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd)
+# gc(full = T, reset = T)
+# 
+# p_agcd_3 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_3mo_sum.nc", "p_agcd_3")
+# 
+# setkeyv(p_agcd_3, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd_3 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd_3)
+# gc(full = T, reset = T)
+# 
+# p_agcd_12 <- processRainfall("./outputs/raster/agcd_precipitation/rolling/agcd_v2-0-1_precip_total_r001_monthly_2000_2022.nc_12mo_sum.nc", "p_agcd_12")
+# 
+# setkeyv(p_agcd_12, c("date", "x","y"))
+# df <- merge(df, 
+#             p_agcd_12 %>% select(-cell), 
+#             by = c("date", "x", "y"),
+#             all.x = T)
+# 
+# rm(p_agcd_12)
+# gc(full = T, reset = T)
+
+```
+
+# Statistical zones
+
+Vector datasets including station boundaries, etc. used for grouping in modelling Converted to raster data
+
+```{r}
+################
+### Stations ###
+################
+
+stations <- read_sf("./outputs/vector/pastoral_stations.gpkg") %>%
+  vect() %>% 
+  rasterize(blankRast, field = "NAME") %>% 
+  as.data.frame(xy = T, cells = T, na.rm = F)
+names(stations)[4] <- "station"
+setDT(stations)
+
+setkeyv(stations, c("x","y"))
+
+df <- merge(df, 
+            stations %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(stations)
+gc(full = T, reset = T)
+
+
+#######################
+### IBRA SubRegions ###
+#######################
+
+ibra_sr <- read_sf("./outputs/vector/ibra_subregions.gpkg") %>% 
+  st_transform("EPSG:28353") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "SUB_NAME_7") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(ibra_sr)
+
+setkeyv(ibra_sr, c("x","y"))
+
+df <- merge(df, 
+            ibra_sr %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(ibra_sr)
+gc(full = T, reset = T)
+
+###################
+### Landsystems ###
+###################
+
+l_sys <- read_sf("./outputs/vector/pastoral_landsystems.gpkg") %>% 
+  st_transform("EPSG:28353") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "LANDSYSTEM") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(l_sys)
+
+setkeyv(l_sys, c("x","y"))
+
+df <- merge(df, 
+            l_sys %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(l_sys)
+gc(full = T, reset = T)
+
+l_sys_id <- read_sf("./outputs/vector/pastoral_landsystems.gpkg") %>% 
+  st_transform("EPSG:28353") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "OBJECTID") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(l_sys_id)
+
+setkeyv(l_sys_id, c("x","y"))
+
+df <- merge(df, 
+            l_sys_id %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(l_sys_id)
+gc(full = T, reset = T)
+
+######################
+### NVIS SubGroups ###
+######################
+
+nvis_s <- rast("./data/raster/NVIS6_0_AUST_EXT_MVS_ALB.tif") %>% 
+  project(blankRast)
+nvis_s[nvis_s == "Unknown/No data"] <- NA
+nvis_s <- nvis_s %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(nvis_s)
+
+setkeyv(nvis_s, c("x","y"))
+
+df <- merge(df, 
+            nvis_s %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(nvis_s)
+gc(full = T, reset = T)
+
+###################
+### NVIS Groups ###
+###################
+
+nvis <- rast("./data/raster/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>% 
+  project(blankRast)
+nvis[nvis == "Unknown/no data"] <- NA
+nvis <- nvis %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(nvis)
+
+setkeyv(nvis, c("x","y"))
+
+df <- merge(df, 
+            nvis %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(nvis)
+gc(full = T, reset = T)
+
+######################
+### Nearby Bon Bon ###
+######################
+
+zone <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "zone")
+zone[is.na(zone)] <- 3
+zone <- zone %>% 
+  as.data.frame(xy = T, cells = T)
+
+setDT(zone)
+setkeyv(zone, c("x","y"))
+df <- merge(df, 
+            zone %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(zone)
+gc(full = T, reset = T)
+
+############################
+### Station Fence Buffer ###
+############################
+
+
+fences <- read_sf("./outputs/vector/fences.gpkg") %>%
+  rasterize(blankRast, field = "fence") %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(fences)
+
+setkeyv(fences, c("x","y"))
+
+df <- merge(df, 
+            fences %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(fences)
+gc(full = T, reset = T)
+
+#################
+### Dog Fence ###
+#################
+
+dog_fence <- read_sf("./outputs/vector/dog_fence.gpkg") %>% 
+  rasterize(blankRast, field = "inside") %>% 
+  as.data.frame(xy = T, cells = T, na.rm = F)
+setDT(dog_fence)
+
+setkeyv(dog_fence, c("x","y"))
+
+df <- merge(df, 
+            dog_fence %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(dog_fence)
+gc(full = T, reset = T)
+```
+
+# Water areas
+
+```{r}
+water <- read_sf("./outputs/vector/water_courses.gpkg") %>% 
+  add_column(water = 1) %>% 
+  vect() %>% 
+  rasterize(blankRast, field = "water")
+
+water[water != 1] <- NA
+
+water <- water %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(water)
+
+setkeyv(water, c("x","y"))
+
+df <- merge(df,
+            water %>% select(-cell), 
+            by = c("x", "y"),
+            all.x = T)
+
+rm(water)
+gc(full = T, reset = T)
+```
+
+# Mask
+
+```{r}
+mask <- rast("./outputs/raster/mask.tif")
+names(mask) <- "mask"
+mask <- mask %>% 
+  as.data.frame(xy = T, cells = T)
+setDT(mask)
+setkeyv(mask, c("x", "y"))
+
+df <- merge(df, mask %>% select(-cell),
+            by = c("x", "y"),
+            all.x = T)
+rm(mask)
+gc(full = T, reset = T)
+
+df <- df %>%
+  filter(mask != 1)
+
+df <- df %>%
+  select(-mask)
+```
+
+```{r}
+df <- df %>% 
+  mutate(year = as.factor(year(df$date)),
+         .after = 4)
+```
+
+
+```{r}
+names(df) <- c("x", "y", "cell", "date", "year", "pv", "npv", "bare", "station", "ibra_subregion", "land_system", "land_system_id", "nvis_subgroup", "nvis_group", "study_zone", "fence_buffer", "dog_fence", "water")
+```
+
+
+# Save df
+
+```{r}
+arrow::write_parquet(df, file.path(outputFolder, "full_dataframe.parquet"))
+
+# df %>%
+#   .[sample(1:nrow(.), 10000),] %>%
+#   st_as_sf(coords = c("x", "y")) %>% st_geometry() %>%
+#   plot()
+```

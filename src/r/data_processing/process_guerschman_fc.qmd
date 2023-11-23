@@ -1,0 +1,102 @@
+---
+title: "Process Guerschman Fractional Cover"
+format: html
+---
+
+This is the first processing step necessary for this research.MODIS FC is taken and processed to the desired study region. The script...
+
+Takes input rasters - monthly fractional cover and 
+- reprojects / crops to match the study area, 
+- writes processed rasters to output/rasters
+
+```{r}
+#| label: setup
+pacman::p_load(tidyverse, terra, sf) 
+
+studyExtent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  st_geometry()
+
+# Study extent reprojected to modis sinusoidal
+studyExtent_modsin <- studyExtent %>% 
+  st_transform("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs")
+```
+
+# Import Fractional Cover
+
+```{r Import Raster data}
+dataPath <- "E:/data/Landscape_Products/Vegetation_Products/GuerschmanFC/Monthly" %>% 
+  list.files("*.nc", full.names = T)
+
+outputPath <- file.path("./outputs/raster/guerschman_fc_monthly")
+ 
+####################
+### Read rasters ###
+####################
+
+# Data paths for MODIS vertical grid cell 11 and 12
+dataPath_v11 <- dataPath[which(str_detect(dataPath, "v11"))]
+dataPath_v12 <- dataPath[which(str_detect(dataPath, "v12"))]
+
+### V11 ###
+# Load vertical column 11 rasters
+# for pv, npv and bare
+
+fc <- rast(dataPath_v11) %>%
+  terra::merge(rast(dataPath_v12))
+  
+pv <- fc %>% 
+  .[[which(str_detect(names(.), "^phot"))]]
+
+npv <- fc %>% 
+  .[[which(str_detect(names(.), "^nphot"))]]
+
+bare <- fc %>% 
+  .[[which(str_detect(names(.), "^bare"))]]
+
+# Function to crop rasters to the study area and reproject to
+# GDA94 MGA zone 53
+reproject_crop <- function(x) {
+  out <- x %>%
+    crop(studyExtent_modsin %>% st_buffer(10000)) %>% 
+    project("EPSG:28353") %>%
+    crop(studyExtent %>% st_buffer(5000))
+  
+  return(out)
+}
+
+# Apply above function to each cover component
+pv <- reproject_crop(pv)
+npv <- reproject_crop(npv)
+bare <- reproject_crop(bare)
+```
+
+## Rename rasters
+
+```{r}
+# Function to create output files names from image times and cover type
+rast_names <- function(x) {
+  month <- lubridate::month(time(x))
+  year <- lubridate::year(time(x))
+  cover_type <- deparse(substitute(x)) %>% stringr::str_to_upper()
+  names <- paste0(cover_type, "_Monthly_Medoid.v310.MCD43A4.h29v11.", year ,".", month, ".006.tif" )
+  }
+
+names(pv) <- rast_names(pv)
+names(npv) <- rast_names(npv)
+names(bare) <- rast_names(bare)
+```
+
+# Write rasters
+
+Save processed rasters as .nc
+
+```{r, eval = FALSE}
+start_date <- time(pv)[1] %>% 
+  str_replace_all("-", "")
+end_date <- time(pv)[length(time(pv))] %>% 
+  str_replace_all("-", "")
+
+writeCDF(pv, file.path(outputPath, paste0("fc_monthly_pv_", start_date, "_", end_date, ".nc")), varname = "guerschman_monthly_pv", compression = 6, overwrite = T)
+writeCDF(npv, file.path(outputPath, paste0("fc_monthly_npv_", start_date, "_", end_date, ".nc")), varname = "guerschman_monthly_npv", compression = 6, overwrite = T)
+writeCDF(bare, file.path(outputPath, paste0("fc_monthly_bare_", start_date, "_", end_date, ".nc")), varname = "guerschman_monthly_bare", compression = 6, overwrite = T)
+```

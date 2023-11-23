@@ -13,8 +13,8 @@ data/**
 !data/vector
 !data/tables
 !data/raster
-src/arcgis
-src/qgis
-src/old
+/src/arcgis
+/src/qgis
+/src/r/old
 doc
 .tmp.driveupload/

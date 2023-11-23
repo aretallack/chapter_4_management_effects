@@ -1,0 +1,235 @@
+---
+title: "trend analysis"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+pacman::p_load(tidyverse, plyr, tidyterra, sf, terra, mblm, ggpubr, colorspace)
+
+raster <- rast(list.files("./outputs/raster/guerschman_fc_monthly", "*.nc$", full.names = T))
+study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
+  st_geometry()
+
+surrounding_area <- st_bbox(st_buffer(study_area, 250)) %>% 
+  st_as_sfc() %>% 
+  st_difference(., study_area[1]) %>% 
+  st_difference()
+
+ibra_sr <- read_sf("./data/vector/ibra_subregions.gpkg") %>% 
+  select(SUB_NAME_7) %>% 
+  st_intersection(st_geometry(study_area)[1])
+
+mask <- rast("./outputs/raster/mask_nofence.tif") %>% 
+  mask(vect(study_area)) %>% 
+  crop(vect(study_area))
+
+pv <- raster[[str_detect(names(raster), "_pv*")]]
+npv <- raster[[str_detect(names(raster), "_npv*")]]
+bare <- raster[[str_detect(names(raster), "_bare*")]]
+```
+
+# Calculate differences
+
+```{r}
+
+if (!file.exists("./outputs/raster/guerschman_fc_monthly/rolling_persistent/pv_05_monthly.nc")) {
+  pv_05 <- pv %>%
+    roll(12, \(x) quantile(x, 0.05, na.rm = T))
+  writeCDF(pv_05, "./outputs/raster/guerschman_fc_monthly/rolling_persistent/pv_05_monthly.nc", "Rolling PV 5th", "12 month rolling PV 5th percentile", overwrite = T, compression = 6)
+} else {
+    pv_05 <- rast("./outputs/raster/guerschman_fc_monthly/rolling_persistent/pv_05_monthly.nc")
+  } 
+
+if (!file.exists("./outputs/raster/guerschman_fc_monthly/rolling_persistent/npv_05_monthly.nc")) {
+  npv_05 <- npv %>%
+    roll(12, \(x) quantile(x, 0.05, na.rm = T))
+  writeCDF(npv_05, "./outputs/raster/guerschman_fc_monthly/rolling_persistent/npv_05_monthly.nc", "Rolling NPV 5th", "12 month rolling NPV 5th percentile", overwrite = T, compression = 6)
+} else {
+    npv_05 <- rast("./outputs/raster/guerschman_fc_monthly/rolling_persistent/npv_05_monthly.nc")
+  }
+
+if (!file.exists("./outputs/raster/guerschman_fc_monthly/rolling_persistent/bare_95_monthly.nc")) {
+  bare_95 <- bare %>%
+    roll(12, \(x) quantile(x, 0.05, na.rm = T))
+  writeCDF(bare_95, "./outputs/raster/guerschman_fc_monthly/rolling_persistent/bare_95_monthly.nc", "Rolling BARE 95th", "12 month rolling BARE 95th percentile", overwrite = T, compression = 6)
+} else {
+  bare_95 <- rast("./outputs/raster/guerschman_fc_monthly/rolling_persistent/bare_95_monthly.nc")
+}
+
+pv_before <- pv_05 %>%
+  .[[year(time(pv)) %in% c(2001:2005)]] %>% 
+  mean()
+pv_after <-  pv_05 %>% 
+  .[[year(time(pv)) %in% c(2018:2023)]] %>% 
+  mean()
+pv_diff <- (pv_after - pv_before) %>% 
+  crop(study_area) %>% 
+  mask(vect(study_area)) %>% 
+  mask(mask, maskvalue = 1)
+names(pv_diff) <- "Persistent PV"
+
+
+npv_before <-  npv_05 %>% 
+  .[[year(time(npv)) %in% c(2001:2005)]] %>% 
+  mean()
+npv_after <-  npv_05 %>% 
+  .[[year(time(npv)) %in% c(2018:2023)]] %>% 
+  mean()
+npv_diff <- (npv_after - npv_before) %>% 
+  crop(study_area) %>% 
+  mask(vect(study_area)) %>% 
+  mask(mask, maskvalue = 1)
+names(npv_diff) <- "Persistent NPV"
+
+bare_before <-  bare_95 %>% 
+  .[[year(time(bare)) %in% c(2001:2005)]] %>% 
+  mean()
+bare_after <-  bare_95 %>% 
+  .[[year(time(bare)) %in% c(2018:2023)]] %>% 
+  mean()
+bare_diff <- (bare_after - bare_before) %>% 
+  crop(study_area) %>% 
+  mask(vect(study_area)) %>% 
+  mask(mask, maskvalue = 1)
+names(bare_diff) <- "Persistent Bare"
+
+```
+
+# Plot Rasters
+
+```{r}
+plot_maps <- function(x){
+  lims <- x %>% 
+    as.vector() %>% 
+    .[-which(is.na(.))] %>% 
+    quantile(c(0.01, 0.99)) %>% 
+    as.vector()
+  
+  x[x < lims[1]] <- lims[1]
+  x[x > lims[2]] <- lims[2]
+  
+  # centred_lims <- lims %>% 
+  #   abs() %>% 
+  #   .[which(. %in% max(.))] %>% 
+  #   {c(round_any((.*-1), 0.01, floor), round_any(., 0.01, ceiling))}
+    
+  ggplot() +
+    geom_spatraster(data = x) +
+    geom_sf(data = ibra_sr, fill = "transparent", colour = alpha("grey10", 0.5), linewidth = 0.3) +
+    geom_sf(data = surrounding_area, fill = "white", colour = "transparent") +
+    geom_sf(data = st_buffer(study_area[1], 200), fill = "transparent", linewidth = 1) +
+    geom_sf(data = study_area, fill = "transparent", linewidth = c(0.8, 0.5), colour = c(alpha("#FFFF73", 1), alpha("black", 0.8)), linetype = c("solid", "dotted")) +
+    
+    labs(fill = "% Cover Difference",
+         title = names(x),
+         subtitle = "Difference\n(2001-2005) to (2018-2022)") +
+    
+    theme_classic() +
+    
+    theme(legend.position = c(0.5, 0.2),
+          legend.title = element_text(size = unit(6, "cm"), hjust = 0.5, vjust = -1.5, face = "bold"),
+          legend.spacing.y = unit(0.2, "cm"),
+          legend.text = element_text(size = unit(8, "cm"), vjust = 2.45, face = "bold"),
+          legend.background = element_rect(fill = "transparent"),
+          plot.title = element_text(
+            hjust = 0.5,
+            vjust = -2,
+            face = "bold",
+            size = unit(10, "cm")
+            ),
+          plot.subtitle = element_text(
+            hjust = 0.5,
+            vjust = -2,
+            size = unit(8, "cm")
+            ),
+          legend.box.margin = margin(-0.8,0,0,0, "cm"),
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank()
+          )
+            
+
+}
+
+pv_lims <- quantile(as.vector(pv_diff), c(0.01, 0.99), na.rm = T) %>% 
+  as.numeric()
+
+pv_diff_plot <- plot_maps(pv_diff) +
+  theme(plot.margin = unit(c(0, 0, -0.5, 0), "cm")) +
+  scale_fill_continuous_diverging(palette = "Purple-Green",
+                                  rev = F,
+                                  mid = 0,
+                                  na.value = "grey70",
+                                  limits = c(round_any(pv_lims[1], 0.1, floor), round_any(pv_lims[2], 0.1, ceiling)),
+                                  breaks = c(0, round_any(pv_lims[2], 0.1, ceiling)),
+                                  labels = c("0", round_any(pv_lims[2], 0.1, ceiling)),
+                                    guide = guide_colorbar(
+                                      title.position = "top",
+                                      title.hjust = 1,
+                                      barwidth = unit(2, "cm"),
+                                      barheight = unit(0.5, "cm"),
+                                      frame.colour = "black",
+                                      ticks.colour = "black"
+                                      ))
+
+
+npv_lims <- quantile(as.vector(npv_diff), c(0.01, 0.99), na.rm = T) %>% 
+  as.numeric()
+
+npv_diff_plot <- plot_maps(npv_diff) +
+  theme(plot.margin = unit(c(0, 0, -0.5, 0), "cm")) +
+  scale_fill_continuous_diverging(palette = "red_green",
+                                  rev = F,
+                                  mid = 0,
+                                  na.value = "grey70",
+                                  limits = c(round_any(npv_lims[1], 0.1, floor), round_any(npv_lims[2], 0.1, ceiling)),
+                                  breaks = c(round_any(npv_lims[1], 0.1, floor), 0, round_any(npv_lims[2], 0.1, ceiling)),
+                                  labels = c(round_any(npv_lims[1], 0.1, floor), "0", round_any(npv_lims[2], 0.1)),
+                                  guide = guide_colorbar(
+                                    title.position = "top",
+                                    title.hjust = 1,
+                                    barwidth = unit(2, "cm"),
+                                    barheight = unit(0.5, "cm"),
+                                      frame.colour = "black",
+                                      ticks.colour = "black"
+                                    ))
+
+bare_lims <- quantile(as.vector(bare_diff), c(0.01, 0.99), na.rm = T) %>% 
+  as.numeric()
+  
+bare_diff_plot <- plot_maps(bare_diff) +
+  theme(plot.margin = unit(c(0, 0, -0.5, 0), "cm")) +
+  scale_fill_continuous_diverging(palette = "purple_brown", 
+                                  mid = 0,
+                                  na.value = "grey70",
+                                  limits = c(round_any(bare_lims[1], 0.1, floor), round_any(bare_lims[2], 0.1, ceiling)),
+                                  breaks = c(round_any(bare_lims[1], 0.1, floor), 0, round_any(bare_lims[2], 0.1, ceiling)),
+                                  labels = c(round_any(bare_lims[1], 0.1, floor), "0", round_any(bare_lims[2], 0.1)),
+                                  guide = guide_colorbar( 
+                                    title.position = "top",
+                                    title.hjust = 1,
+                                    barwidth = unit(2, "cm"),
+                                    barheight = unit(0.5, "cm"),
+                                      frame.colour = "black",
+                                      ticks.colour = "black"
+                                    ))
+
+ggarrange(pv_diff_plot,
+          npv_diff_plot,
+          bare_diff_plot,
+          ncol = 3,
+          common.legend = F,
+          legend = "bottom") +
+  theme(plot.margin = margin(0,0,0.5,0, "cm"))
+
+ggsave("./figures/figure_8_20year_differences.png",
+       width = 16,
+       height = 10,
+       dpi = 300,
+       units = "cm")
+```
+
+
+

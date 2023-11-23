@@ -1,0 +1,33 @@
+---
+title: "Composite rainfall datasets"
+format: html
+---
+
+```{r}
+#| label: setup
+pacman::p_load(terra, tidyverse, stringr)
+```
+
+# AGCD
+
+```{r}
+agcd_path <- "./outputs/raster/agcd_precipitation"
+agcd <- list.files(agcd_path, "*.nc$", full.names = T) %>% 
+  rast()
+```
+
+```{r}
+sum_3mo_agcd <- roll(agcd, 3, type = "to", fun = "sum")
+sum_12mo_agcd <- roll(agcd, 12, type = "to", fun = "sum")
+sum_24mo_agcd <- roll(agcd, 24, type = "to", fun = "sum")
+sum_36mo_agcd <- roll(agcd, 36, type = "to", fun = "sum")
+
+outName <- list.files(agcd_path, "*.nc$", full.names = T) %>% 
+  basename()
+
+writeCDF(sum_3mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_3mo_sum.nc")), varname = "agcd_precipitation_3mo_sum", compression = 6, overwrite = T)
+writeCDF(sum_12mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_12mo_sum.nc")), varname = "agcd_precipitation_12mo_sum", compression = 6, overwrite = T)
+writeCDF(sum_24mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_24mo_sum.nc")), varname = "agcd_precipitation_24mo_sum", compression = 6, overwrite = T)
+writeCDF(sum_36mo_agcd, file.path(agcd_path, "rolling", paste0(outName, "_36mo_sum.nc")), varname = "agcd_precipitation_36mo_sum", compression = 6, overwrite = T)
+
+```
