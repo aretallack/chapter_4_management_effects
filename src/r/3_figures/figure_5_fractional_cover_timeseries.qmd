@@ -101,10 +101,10 @@ ggplot(monthly_fc, aes(x = date)) +
   geom_ribbon(data = ribbon_data, aes(ymin = min, ymax = max, fill = cover_type), alpha = 0.2, show.legend = F) +
   annotate("rect", xmin = as_date("2007-11-01"), xmax = as_date("2008-03-01"), ymin = 0, ymax = 72,
            alpha = .1, fill = "black") +
-  annotate("text", x = as_date("2008-04-01"), y = 66,
-           label = "bold('Bon Bon Destocked (2008)')",
-           hjust = 0, color = "grey30", parse = T,
-           size = 8/.pt) +
+  # annotate("text", x = as_date("2008-04-01"), y = 66,
+  #          label = "bold('Bon Bon Destocked (2008)')",
+  #          hjust = 0, color = "grey30", parse = T,
+  #          size = 8/.pt) +
   coord_cartesian(ylim = c(min(monthly_fc$cover), (max(monthly_fc$cover) + 2)),
                   xlim = c(as_date("2002-01-01"), as_date("2023-01-01"))) +
   scale_y_continuous(breaks = seq(plyr::round_any(min(monthly_fc$cover), 10, floor), 
@@ -175,6 +175,10 @@ pv_plot <- plot_cover(monthly_fc %>%
              filter(cover_type == "pv_12mo"),
            ribbon_data %>% 
              filter(cover_type == "pv_12mo")) +
+  annotate("text", x = as_date("2008-04-01"), y = 15,
+           label = "bold('Bon Bon Destocked (2008)')",
+           hjust = 0, color = "grey30", parse = T,
+           size = 8/.pt) +
   theme(legend.position = c(0.8, 0.9)) +
   annotate("text", x = as_date("2002-06-01"), y = 14.8,
            label = "underline(bold('PV'))",
@@ -223,37 +227,3 @@ ggsave("./figures/figure_5_rolling_cover.png",
        units = "cm")
 
 ```
-
-
-# Correlation between difference and rainfall anom
-
-```{r}
-cover_rain <- monthly_fc %>% 
-  mutate(bonbon = ifelse(bonbon == 1, "bonbon", "surrounding")) %>% 
-  pivot_wider(id_cols = c("date", "cover_type"), values_from = cover, names_from = bonbon) %>% 
-  mutate(difference = surrounding - bonbon) %>% 
-  merge(monthly_rain, by = "date", all.x = F) %>% 
-  mutate(rainfall_anom = rainfall - mean(rainfall, na.rm = T))
-
-ggplot(cover_rain, aes(x = rainfall_anom, y = difference, colour = cover_type)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_classic()
-
-pv_cor <- cover_rain %>%
-  filter(cover_type == "pv_12mo") %>% 
-  {cor(.$difference, .$rainfall_anom)}
-
-npv_cor <- cover_rain %>%
-  filter(cover_type == "npv_12mo") %>% 
-  {cor(.$difference, .$rainfall)}
-
-bare_cor <- cover_rain %>%
-  filter(cover_type == "bare_12mo") %>% 
-  {cor(.$difference, .$rainfall)}
-
-cat(" PV correlation = ", pv_cor,"\n",
-    "NPV correlation = ", npv_cor,"\n",
-    "bare correlation = ", bare_cor)
-```
-
