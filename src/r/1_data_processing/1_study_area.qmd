@@ -10,21 +10,21 @@ pacman::p_load(tidyverse, sf, terra)
 
 ```{r}
 ## Areas that are within a 10 km buffer of Bon Bon for finer-scale modelling
-bonbon <- read_sf("./data/vector/pastoral_stations.gpkg") %>%
-  st_transform("EPSG:28353") %>% 
-  as_tibble() %>% 
-  .[which(.$NAME == "Bon Bon"), ] %>% 
-  st_as_sf() %>% 
-  st_geometry()
+bonbon <- read_sf("./data/vector/pastoral_stations.gpkg") %>% # Input pastoral stations dataset
+  st_transform("EPSG:28353") %>%  # Transform to local coordinate system
+  as_tibble() %>% # Convert to tibble (dataframe)
+  .[which(.$NAME == "Bon Bon"), ] %>% # Select rows where station name is Bon Bon
+  st_as_sf() %>% # Convert back to sf
+  st_geometry() # Extract geometry only
 
 zone <- bonbon %>% 
-  st_buffer(10000) %>% 
-  st_intersection(c(., bonbon)) %>% 
-  as_tibble() %>% 
-  add_column(zone = c(2, 1)) %>% 
-  st_as_sf()
+  st_buffer(10000) %>% # Buffer Bon Bon by 10,000 m 
+  st_intersection(c(., bonbon)) %>% # Intersect Bon Bon and the buffered Bon Bon
+  as_tibble() %>% # Convert to tibble
+  add_column(zone = c(2, 1)) %>% # Create new column - buffer zone = 2, bon bon = 1
+  st_as_sf() # Convert back to sfm
 
-zone[is.na(zone)] <- 3
+zone[is.na(zone)] <- 3 # Any areas that are not Bon Bon or the buffer are zone 3
 
-write_sf(zone, "./outputs/vector/bonbon_buffer.gpkg")
+write_sf(zone, "./outputs/vector/bonbon_buffer.gpkg") # Save buffered Bon Bon geometry as geopackage
 ```

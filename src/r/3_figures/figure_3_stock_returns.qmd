@@ -102,6 +102,7 @@ ggpubr::ggarrange(plot_stocking +
 ggsave("./figures/figure_3_stock_returns.png",
        width = 16,
        height = 8,
+       dpi = 600,
        units = "cm")
 ```
 

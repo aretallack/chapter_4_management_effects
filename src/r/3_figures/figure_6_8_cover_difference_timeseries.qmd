@@ -151,7 +151,7 @@ ggpubr::ggarrange(pv_eff +
 ggsave("./figures/figure_6_pv_cover_difference.png",
        width = 16,
        height = 12,
-       dpi = 300,
+       dpi = 600,
        units = "cm")
 
 npv_eff <- plot_effects(effects, "npv05_eff", labelx = ymd("2013-09", truncated = 1),labely = 1.5, legend_position = c(0.80, 0.11)) +
@@ -174,7 +174,7 @@ ggpubr::ggarrange(npv_eff +
 ggsave("./figures/figure_7_npv_cover_difference.png",
        width = 16,
        height = 12,
-       dpi = 300,
+       dpi = 600,
        units = "cm")
 
 bare_eff <- plot_effects(effects, "bare95_eff", labelx = ymd("2013-09", truncated = 1),labely = 1, legend_position = c(0.18, 0.11)) +
@@ -192,6 +192,6 @@ ggpubr::ggarrange(bare_eff +
 ggsave("./figures/figure_8_bare_cover_difference.png",
        width = 16,
        height = 12,
-       dpi = 300,
+       dpi = 600,
        units = "cm")
 ```

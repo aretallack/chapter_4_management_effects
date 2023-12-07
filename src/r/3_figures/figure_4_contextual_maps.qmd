@@ -196,7 +196,7 @@ ggpubr::ggarrange(elevation_plot,
 ggsave("./figures/figure_4_contextual_maps.png",
        width = 16,
        height = 10,
-       dpi = 300,
+       dpi = 600,
        units = "cm")
 ```
 

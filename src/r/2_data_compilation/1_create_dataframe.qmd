@@ -7,9 +7,6 @@ editor_options:
 
 
 This markdown loads the necessary raster datasets - transforms them to match the same spatial extent and coordinate system as the fractional cover data, and converts to data.table format and merges into a single dataframe representing all raster variables.
-
-This table is used for GAMs in section 1 and 2 of the paper.
-
 ```{r}
 #| label: setup
 pacman::p_load(tidyverse, lubridate, terra, sf, fields, arrow, data.table)
@@ -108,8 +105,7 @@ gc(full = T, reset = T)
 
 
 # Statistical zones
-
-Vector datasets including station boundaries, etc. used for grouping in modelling Converted to raster data
+Vector datasets including station boundaries, etc.
 
 ```{r}
 ################

@@ -224,6 +224,7 @@ ggpubr::ggarrange(pv_plot +
 ggsave("./figures/figure_5_rolling_cover.png",
        width = 16,
        height = 14,
+       dpi = 600,
        units = "cm")
 
 ```

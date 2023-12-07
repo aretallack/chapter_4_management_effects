@@ -3,67 +3,88 @@ title: "Process static datasets"
 format: html
 ---
 
+Create mask raster that is used to mask pixels to be excluded from analysis
+
+
 ```{r}
 #| label: setup
 pacman::p_load(tidyverse, sf, terra)
 ```
 
 ```{r}
+# Take first fc layer as a blank reference raster for reprojecting other datasets
 blankRast <- rast("./outputs/raster/guerschman_fc_monthly/fc_monthly_bare_20010101_20230101.nc") %>% 
   .[[1]]
-blankRast[!is.na(blankRast)] <- NA
+blankRast[!is.na(blankRast)] <- NA # Set all cells to NA (make it blank)
 
+# Load ibra subregions
 ibra_subregions <- read_sf("./outputs/vector/ibra_subregions.gpkg")
 
+# Load 500 m buffer around Bon Bon fence
 fences <- read_sf("./outputs/vector/bonbon_boundary_buffer.gpkg")
 
+# Load water areas
 water <- read_sf("./outputs/vector/water_courses.gpkg") %>% 
   mutate(water = 1)
+
+# Load NVIS groups
 nvis_groups <- rast("./data/raster/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>%
   project(blankRast)
+
+# Load pastoral landsystems
 pastoral_landSystems <- read_sf("./outputs/vector/pastoral_landsystems.gpkg")
 ```
 
 ```{r}
+# Convert ibra subregions to raster based on the sub_name_7 column
 ibra_subregions <- ibra_subregions %>% 
   rasterize(blankRast, field = "SUB_NAME_7")
-ibra_subregions[ibra_subregions %in% c("Breakaways", "Roxby", "Kingoonya")] <- 0
-ibra_subregions[ibra_subregions != 0] <- 1
-ibra_subregions <- as.numeric(ibra_subregions)
+ibra_subregions[ibra_subregions %in% c("Breakaways", "Roxby", "Kingoonya")] <- 0 # Make the three subregions of interest 0
+ibra_subregions[ibra_subregions != 0] <- 1 # Make all other pixels 1
+ibra_subregions <- as.numeric(ibra_subregions) # Convert to numeric
 
+# Convert fence buffer to a raster using the "fence field"
 fences <- fences %>% 
   rasterize(blankRast, field = "fence")
-fences[is.na(fences)] <- 0
+fences[is.na(fences)] <- 0 # set any NA values to 0
 
+# Convert water areas to raster using the "water" field 
 water <- water %>% 
   rasterize(blankRast, field = "water")
-water[is.na(water)] <- 0
+water[is.na(water)] <- 0 # Set any NA values to zero
 
+# Project NVIS groups to same coordinate system and resolution as the blank raster
 nvis_groups <- nvis_groups %>%
   project(blankRast)
 
+# Set NVIS groups of interest to 0
 nvis_groups[nvis_groups %in% c("Acacia Open Woodlands", "Chenopod Shrublands, Samphire Shrublands and Forblands", "Acacia Shrublands", "Acacia Forests and Woodlands")] <- 0
-nvis_groups[nvis_groups != 0] <- 1
-nvis_groups <- as.numeric(nvis_groups)
+nvis_groups[nvis_groups != 0] <- 1 # Set all other pixels to 1
+nvis_groups <- as.numeric(nvis_groups) # Convert to numeric
 
+# Convert pastoral land systems dataset to raster using the OBJECT ID column
 pastoral_landSystems <- pastoral_landSystems %>%
   rasterize(blankRast, field = "OBJECTID")
+# set landsystem to be excluded to 1 (using its object ID)
 pastoral_landSystems[pastoral_landSystems == 770] <- 1
-pastoral_landSystems[pastoral_landSystems != 1] <- 0
+pastoral_landSystems[pastoral_landSystems != 1] <- 0 # Set all other pixels to 0
 
-
+# Create the mask by adding all above rastesr
 mask <- (ibra_subregions + fences + water + nvis_groups + pastoral_landSystems)
+# If the addition adds to less than 1 (i.e. none of the individual layers were 1) then set mask to 0 (no mask)
 mask[mask < 1] <- 0
+# If the addition adds to more than or equal to 1 (i.e. one ore more individual layers say to mask), then set mask to 1 (do mask)
 mask[mask >= 1] <- 1
 
-# Mask no fence used for masking on maps
-# Enables fenceline regions to still be seen.
+# Create different mask without the fence buffer
+# Enables fenceline regions to still be seen in plotted maps.
 mask_nofence <- (ibra_subregions + water + nvis_groups + pastoral_landSystems)
 mask_nofence[mask_nofence < 1] <- 0
 mask_nofence[mask_nofence >= 1] <- 1 
 
 names(mask_nofence) <- "mask_nofence"
 
+# Write both masks
 writeRaster(mask, "./outputs/raster/mask.tif", overwrite = T)
 writeRaster(mask_nofence, "./outputs/raster/mask_nofence.tif", overwrite = T)
 

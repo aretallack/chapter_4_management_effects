@@ -227,7 +227,7 @@ ggarrange(pv_diff_plot,
 ggsave("./figures/figure_9_20year_differences.png",
        width = 16,
        height = 10,
-       dpi = 300,
+       dpi = 600,
        units = "cm")
 ```
 

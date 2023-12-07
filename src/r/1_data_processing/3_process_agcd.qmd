@@ -7,30 +7,31 @@ format: html
 #| label: setup
 pacman::p_load(terra, tidyverse, stringr, sf)
 
-# Load study area
+# Load study area (from 1_study_area.qmd)
 studyExtent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
 ```
 
 
 ```{r}
-filePath <- "E:/data/climate_data/rainfall/agcd/" %>% 
-  list.files("*.nc$", full.names = T)
+# File path to the stored location of agcd netcdf files
+filePath <- "E:/data/climate_data/rainfall/agcd/" %>% # Folder location
+  list.files("*.nc$", full.names = T) # List .nc files in this folder
 
-rasters <- rast(filePath)
+rasters <- rast(filePath) # Load rasters from file paths above
 # Extract dates from raster times
 dates <- time(rasters) %>% as.character()
-substr(dates, 9, 10) <- "01"
+substr(dates, 9, 10) <- "01" # Replace dates with the 1st
 
 # Rename rasters with monthly dates 
 names(rasters) <- basename(filePath) %>% 
-  substr(1, 33) %>% 
+  substr(1, 37) %>% 
   paste0(.,"_", dates) %>% 
   str_replace(".nc", "")
 
 # Crop rasters to the study extent (+ 10 km buffer)
 rasters <- rasters %>%  crop(studyExtent %>%
-                               st_transform("EPSG:4326") %>% 
+                               st_transform("EPSG:4326") %>% # project study extent to match rasters coordinate system 
                                st_buffer(10000)) %>%
   # Reproject to GDA94 MGA zone 53
   project("EPSG:28353") %>% 
@@ -47,9 +48,9 @@ time(rasters) <- as_date(dates)
 
 ```{r}
 start_date <- time(rasters)[1] %>% 
-  str_replace_all("-", "")
+  str_replace_all("-", "") # Get date of first raster for file name
 end_date <- time(rasters)[length(time(rasters))] %>% 
-  str_replace_all("-", "")
+  str_replace_all("-", "") # Get date of last raster for file name
 
 outPath <- filePath %>% 
   basename %>%

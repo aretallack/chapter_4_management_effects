@@ -13,10 +13,11 @@ Takes input rasters - monthly fractional cover and
 #| label: setup
 pacman::p_load(tidyverse, terra, sf) 
 
+# Load buffered Bon Bon boundary
 studyExtent <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
 
-# Study extent reprojected to modis sinusoidal
+# Reprojected to modis sinusoidal
 studyExtent_modsin <- studyExtent %>% 
   st_transform("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs")
 ```
@@ -24,9 +25,11 @@ studyExtent_modsin <- studyExtent %>%
 # Import Fractional Cover
 
 ```{r Import Raster data}
+# File path to location of fractional cover netcdf
 dataPath <- "E:/data/Landscape_Products/Vegetation_Products/GuerschmanFC/Monthly" %>% 
   list.files("*.nc", full.names = T)
 
+# path for outputs
 outputPath <- file.path("./outputs/raster/guerschman_fc_monthly")
  
 ####################
@@ -41,15 +44,18 @@ dataPath_v12 <- dataPath[which(str_detect(dataPath, "v12"))]
 # Load vertical column 11 rasters
 # for pv, npv and bare
 
+# Merge v11 and v12 cells
 fc <- rast(dataPath_v11) %>%
   terra::merge(rast(dataPath_v12))
   
+# Separate out PV
 pv <- fc %>% 
   .[[which(str_detect(names(.), "^phot"))]]
 
+# Separate out NPV
 npv <- fc %>% 
   .[[which(str_detect(names(.), "^nphot"))]]
-
+# Separate out Bare
 bare <- fc %>% 
   .[[which(str_detect(names(.), "^bare"))]]
 
@@ -57,9 +63,9 @@ bare <- fc %>%
 # GDA94 MGA zone 53
 reproject_crop <- function(x) {
   out <- x %>%
-    crop(studyExtent_modsin %>% st_buffer(10000)) %>% 
-    project("EPSG:28353") %>%
-    crop(studyExtent %>% st_buffer(5000))
+    crop(studyExtent_modsin %>% st_buffer(10000)) %>% # Crop rasters to 10km buffered study extent
+    project("EPSG:28353") %>% # Project to local coordiante system
+    crop(studyExtent %>% st_buffer(5000)) # crop again by 5 km buffer to remove edge distortion of projection
   
   return(out)
 }
