@@ -5,7 +5,7 @@ editor_options:
   chunk_output_type: console
 ---
 ```{r}
-pacman::p_load(tidyverse, plyr, tidyterra, sf, terra, mblm, ggpubr)
+pacman::p_load(tidyverse, plyr, tidyterra, sf, terra, mblm, ggpubr, ggspatial)
 
 study_area <- read_sf("./outputs/vector/bonbon_buffer.gpkg") %>% 
   st_geometry()
@@ -37,7 +37,7 @@ surrounding_area <- st_bbox(st_buffer(study_area, 500)) %>%
 # tmean <- mean(tmax, tmin) %>% 
 #   project(crs(raster))
 
-elevation <- rast("E:/data/Basedata/elevation/3secSRTM_DEM/3secSRTM_DEM/DEM_ESRI_GRID_16bit_Integer/dem3s_int.tif") %>% 
+elevation <- rast("D:/data/Basedata/elevation/3secSRTM_DEM/3secSRTM_DEM/DEM_ESRI_GRID_16bit_Integer/dem3s_int.tif") %>% 
   crop(vect(st_transform(study_area, crs(.)))) %>% 
   project("epsg:28353") %>% 
   mask(vect(st_transform(study_area, crs = crs(.))))
@@ -54,7 +54,7 @@ ibra_sr <- read_sf("./data/vector/ibra_subregions.gpkg") %>%
 
 levels(ibra_sr) <- levels(ibra_sr)[[1]][c(1,3,2),] 
 
-nvis <- rast("E:/data/Basedata/Environmental/NVIS/FGDB_NVIS6_0_AUST_EXT_MVG/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>% 
+nvis <- rast("D:/data/Basedata/Environmental/NVIS/FGDB_NVIS6_0_AUST_EXT_MVG/NVIS6_0_AUST_EXT_MVG_ALB.tif") %>% 
   crop(st_transform(study_area, crs(.))) %>%
   project(blankRast) %>% 
   mask(vect(st_transform(study_area, crs(.))))
@@ -65,9 +65,12 @@ nvis[!nvis %in% c(22, 13)] <-  NA
 nvis <- droplevels(nvis)
 
 level_names <- levels(nvis)[[1]]
-level_names[,2] <- c("Chenopod Shrublands", "Acacia Open Woodlands")
-levels(nvis) <- level_names[c(2,1), ]
+level_names <- rbind(level_names, c(0, "Non-vegetated"))
+level_names[,2] <- c("Chenopod Shrublands", "Acacia Open Woodlands", "Non-vegetated")
+level_names$Value <- level_names$Value %>% as.numeric()
+levels(nvis) <- level_names[c(2,1,3), ]
 
+nvis[is.na(nvis)] <- 0
 ```
 
 
@@ -79,7 +82,7 @@ plot_rasters <- function(raster, title) {
     geom_spatraster(data = raster, na.rm = T) +
     geom_sf(data = surrounding_area, fill = "white", colour = "transparent") +
     geom_sf(data = st_buffer(study_area[1], 200), fill = "transparent", linewidth = 1) +
-    geom_sf(data = study_area, fill = "transparent", linewidth = c(0.8, 0.5), colour = c(alpha("#FFFF73", 1), "#73B2FF"), linetype = c("solid", "solid")) +
+    geom_sf(data = study_area, fill = "transparent", linewidth = c(0.8, 0.7), colour = c(alpha("#FFFF73", 1), "#2971cf"), linetype = c("solid", "solid")) +
     
     labs(title = title,
          fill = title) +
@@ -159,6 +162,7 @@ elevation_plot <- plot_rasters(elevation, "Elevation (m)") +
     guide = guide_colorbar(barwidth = unit(2, "cm"),
                            barheight = unit(0.5, "cm"),
                            frame.colour = "black",
+                           frame.linewidth = 0.3,
                            ticks.colour = "black",
                            title.position = "top")
     )
@@ -176,7 +180,7 @@ ibra_plot <- plot_rasters(ibra_sr, "IBRA\nSubregions") +
   ) +
   theme(legend.direction = "vertical",
         legend.position = c(0.5, 0),
-        legend.box.margin = margin(0.4,0,0,0, "cm"),
+        legend.box.margin = margin(1,0,0,0, "cm"),
         legend.title = element_blank(),
         legend.key = element_rect(colour = "black"),
         legend.key.height = unit(0.3, "cm")) +
@@ -187,11 +191,12 @@ nvis_plot <- plot_rasters(nvis, "Vegetation Groups\n(NVIS)") +
   theme(legend.direction = "vertical",
         legend.position = c(0.5, 0),
         legend.title = element_blank(),
+        legend.box.margin = margin(1,0,0,0, "cm"),
+        # legend.key = element_rect(colour = "black", linewidth = 0.5),
         legend.key = element_rect(colour = "black"),
         legend.key.height = unit(0.3, "cm")) +
-  scale_fill_manual(values = c("steelblue", "pink"),
-                    labels = c("Chenopod Shrubland", "Acacia Open Woodland"),
-                    na.translate = FALSE)
+  scale_fill_manual(values = c("steelblue", "pink", "white"),
+                    labels = c("Chenopod Shrubland", "Acacia Open Woodland", "Non-vegetated"))
 
 ggpubr::ggarrange(elevation_plot,
                   ibra_plot,
