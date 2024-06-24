@@ -7,6 +7,7 @@ editor_options:
 
 
 This markdown loads the necessary raster datasets - transforms them to match the same spatial extent and coordinate system as the fractional cover data, and converts to data.table format and merges into a single dataframe representing all raster variables.
+
 ```{r}
 #| label: setup
 pacman::p_load(tidyverse, lubridate, terra, sf, fields, arrow, data.table)

@@ -11,7 +11,7 @@ pacman::p_load(tidyverse, sf, terra)
 ```{r}
 ## Areas that are within a 10 km buffer of Bon Bon for finer-scale modelling
 bonbon <- read_sf("./data/vector/pastoral_stations.gpkg") %>% # Input pastoral stations dataset
-  st_transform("EPSG:28353") %>%  # Transform to local coordinate system
+  st_transform("EPSG:28353") %>%  # Transform to local coordinate system (Maybe different for Boolcoomata 28352??)
   as_tibble() %>% # Convert to tibble (dataframe)
   .[which(.$NAME == "Bon Bon"), ] %>% # Select rows where station name is Bon Bon
   st_as_sf() %>% # Convert back to sf
