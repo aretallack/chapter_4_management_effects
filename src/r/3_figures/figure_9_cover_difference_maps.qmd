@@ -120,7 +120,7 @@ plot_maps <- function(x){
     geom_sf(data = ibra_sr, fill = "transparent", colour = alpha("grey10", 0.5), linewidth = 0.3) +
     geom_sf(data = surrounding_area, fill = "white", colour = "transparent") +
     geom_sf(data = st_buffer(study_area[1], 200), fill = "transparent", linewidth = 1) +
-    geom_sf(data = study_area, fill = "transparent", linewidth = c(0.8, 0.5), colour = c(alpha("#FFFF73", 1), alpha("black", 0.8)), linetype = c("solid", "dotted")) +
+    geom_sf(data = study_area, fill = "transparent", linewidth = c(0.8, 0.5), colour = c(alpha("#FFFF73", 1), alpha("black", 0.8)), linetype = c("solid", "solid")) +
     
     labs(fill = "% Cover Difference",
          title = names(x),
@@ -168,6 +168,7 @@ pv_diff_plot <- plot_maps(pv_diff) +
                                     guide = guide_colorbar(
                                       title.position = "top",
                                       title.hjust = 1,
+                                      frame.linewidth = 0.2,
                                       barwidth = unit(2, "cm"),
                                       barheight = unit(0.5, "cm"),
                                       frame.colour = "black",
@@ -190,6 +191,7 @@ npv_diff_plot <- plot_maps(npv_diff) +
                                   guide = guide_colorbar(
                                     title.position = "top",
                                     title.hjust = 1,
+                                    frame.linewidth = 0.2,
                                     barwidth = unit(2, "cm"),
                                     barheight = unit(0.5, "cm"),
                                       frame.colour = "black",
@@ -210,6 +212,7 @@ bare_diff_plot <- plot_maps(bare_diff) +
                                   guide = guide_colorbar( 
                                     title.position = "top",
                                     title.hjust = 1,
+                                    frame.linewidth = 0.2,
                                     barwidth = unit(2, "cm"),
                                     barheight = unit(0.5, "cm"),
                                       frame.colour = "black",
@@ -224,7 +227,7 @@ ggarrange(pv_diff_plot,
           legend = "bottom") +
   theme(plot.margin = margin(0,0,0.5,0, "cm"))
 
-ggsave("./figures/figure_9_20year_differences.png",
+ggsave("./figures/figure_7_20year_differences.png",
        width = 16,
        height = 10,
        dpi = 600,
